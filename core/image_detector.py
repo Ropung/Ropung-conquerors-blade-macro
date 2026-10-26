@@ -13,7 +13,7 @@ def required_templates(quantity):
         "inventory_target_name", "inventory_target_blue",
         "quantity_field", "buy_confirm", "inventory_open", "dismantle_icon",
         "dismantle_panel", "inventory_target", "slot_target", "slot_empty",
-        "dismantle_button", "complete_popup", "complete_confirm", "dismantle_cost_300",
+        "dismantle_button", "complete_popup", "complete_confirm",
         f"quantity_{quantity}", f"buy_cost_{quantity * 1600}",
     }
     names.update(f"dismantle_cost_{amount * 300}" for amount in batches(quantity))
