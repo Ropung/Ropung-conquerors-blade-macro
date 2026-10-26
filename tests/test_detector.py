@@ -33,3 +33,20 @@ class DetectorTests(unittest.TestCase):
     def test_roi_excludes_unrelated_inventory(self):
         self.frame[20:32, 30:42] = self.template
         self.assertEqual(self.detector.find_all(self.frame, "target", [50, 50, 50, 50]), [])
+
+    def test_diagnostic_reports_location_and_threshold(self):
+        self.frame[20:32, 30:42] = self.template
+        result = self.detector.diagnose(self.frame, "target")
+        self.assertEqual(result["matches"], [(36, 26)])
+        self.assertGreater(result["similarity"], .99)
+        self.assertEqual(result["threshold"], .99)
+        self.assertEqual(result["best"], (30, 20, 12, 12))
+
+    def test_diagnostic_reports_failure_without_lowering_threshold(self):
+        result = self.detector.diagnose(self.frame, "target")
+        self.assertEqual(result["matches"], [])
+        self.assertLess(result["similarity"], result["threshold"])
+
+    def test_diagnostic_rejects_region_outside_screen(self):
+        with self.assertRaises(SafetyError):
+            self.detector.diagnose(self.frame, "target", [-1, 0, 50, 50])

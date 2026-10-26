@@ -2,13 +2,13 @@ import json
 from pathlib import Path
 
 import cv2
-from PySide6.QtCore import Qt, QRect, Signal
+from PySide6.QtCore import Qt, QRect, Signal, QTimer
 from PySide6.QtGui import QImage, QPixmap, QPainter, QPen
 from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-                               QComboBox, QMessageBox, QScrollArea)
+                               QComboBox, QMessageBox, QScrollArea, QPlainTextEdit)
 
 from core.config import write_json
-from core.image_detector import Detector, Profile, required_templates
+from core.image_detector import Detector, Profile, required_templates, valid_rect
 from core.screen_capture import GameWindow, ScreenCapture
 from core.state_machine import batches
 
@@ -88,6 +88,7 @@ class CropView(QLabel):
         self.frame = frame
         self.start = None
         self.rect = QRect()
+        self.overlays = []
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         image = QImage(rgb.data, 2560, 1440, rgb.strides[0], QImage.Format.Format_RGB888).copy()
         self.setPixmap(QPixmap.fromImage(image))
@@ -117,6 +118,10 @@ class CropView(QLabel):
         painter = QPainter(self)
         painter.setPen(QPen(Qt.GlobalColor.red, 2))
         painter.drawRect(self.rect)
+        for rect, label, color in self.overlays:
+            painter.setPen(QPen(color, 3))
+            painter.drawRect(rect)
+            painter.drawText(rect.x(), max(15, rect.y() - 4), label)
 
 
 class CalibrationDialog(QDialog):
@@ -127,6 +132,11 @@ class CalibrationDialog(QDialog):
         self.data = (json.loads(self.path.read_text(encoding="utf-8")) if self.path.exists()
                      else {"resolution": [2560, 1440], "templates": {}, "regions": {}, "reviewed_quantities": []})
         self.view = None
+        self.test_timer = QTimer(self)
+        self.test_timer.setSingleShot(True)
+        self.test_timer.timeout.connect(self.run_recognition_test)
+        self.test_names = []
+        self.restore_parent = False
         self.setWindowTitle("2560×1440 게임 화면 보정 (읽기 전용 캡처)")
         self.resize(1200, 850)
         layout = QVBoxLayout(self)
@@ -155,6 +165,14 @@ class CalibrationDialog(QDialog):
         navigation.addWidget(previous)
         navigation.addWidget(following)
         layout.addLayout(navigation)
+        tests = QHBoxLayout()
+        selected_test = QPushButton("선택 항목 인식 테스트 (3초 후)")
+        selected_test.clicked.connect(lambda: self.schedule_test(False))
+        stage_test = QPushButton("현재 단계 전체 인식 테스트 (3초 후)")
+        stage_test.clicked.connect(lambda: self.schedule_test(True))
+        tests.addWidget(selected_test)
+        tests.addWidget(stage_test)
+        layout.addLayout(tests)
         self.stage_text = QLabel()
         self.stage_text.setWordWrap(True)
         layout.addWidget(self.stage_text)
@@ -166,6 +184,11 @@ class CalibrationDialog(QDialog):
         layout.addWidget(self.status)
         self.scroll = QScrollArea()
         layout.addWidget(self.scroll, 1)
+        self.test_results = QPlainTextEdit()
+        self.test_results.setReadOnly(True)
+        self.test_results.setMaximumHeight(140)
+        self.test_results.setPlaceholderText("인식 테스트는 실제 게임 화면을 새로 캡처합니다. 클릭·키 입력·구매·분해는 하지 않습니다.")
+        layout.addWidget(self.test_results)
         review = QPushButton("현재 수량의 템플릿/비용/영역을 수동 검토 완료로 표시")
         review.clicked.connect(self.review)
         layout.addWidget(review)
@@ -229,6 +252,94 @@ class CalibrationDialog(QDialog):
         finally:
             if capture:
                 capture.close()
+
+    def schedule_test(self, whole_stage):
+        name = self.name.currentData()
+        if not name or self.test_timer.isActive():
+            return
+        steps = capture_steps(self.config.quantity)
+        stage = next(stage for key, stage, _ in steps if key == name)
+        self.test_names = [key for key, group, _ in steps if group == stage] if whole_stage else [name]
+        self.status.setText("3초 뒤 현재 게임 화면을 검사합니다. 게임을 보이게 하고 필요한 툴팁을 띄우세요.")
+        self.restore_parent = bool(self.parentWidget() and self.parentWidget().isVisible())
+        self.hide()
+        if self.restore_parent:
+            self.parentWidget().hide()
+        self.test_timer.start(3000)
+
+    def restore_test_windows(self):
+        if self.restore_parent and self.parentWidget():
+            self.parentWidget().show()
+        self.restore_parent = False
+        self.show()
+
+    def run_recognition_test(self):
+        capture = None
+        reports, overlays = [], []
+        try:
+            profile = Profile(self.path)
+            # No full-profile validation: unfinished stages may be tested separately.
+            names = [name for name in self.test_names if not is_region(name) and name in profile.templates]
+            capture = ScreenCapture(GameWindow(self.config.window_title))
+            frame = capture.capture(foreground=True)
+            detector = Detector(profile, names=names)
+            for name in self.test_names:
+                label = korean_label(name)
+                if is_region(name):
+                    region = profile.regions.get(name)
+                    if valid_rect(region):
+                        overlays.append((QRect(*region), label, Qt.GlobalColor.yellow))
+                        reports.append(f"[영역 표시] {label}: {region} (아이템 인식 결과 아님)")
+                    else:
+                        reports.append(f"[미저장/오류] {label}")
+                    continue
+                if name not in profile.templates:
+                    reports.append(f"[미저장] {label}: 먼저 이미지를 저장하세요.")
+                    continue
+                regions = [(None, None)]
+                if name == "inventory_target" and "inventory" in profile.regions:
+                    regions = [(None, profile.regions["inventory"])]
+                elif name in ("slot_empty", "slot_target"):
+                    regions = [(f"{i+1}번 칸", profile.regions[f"slot_{i}"]) for i in range(15) if f"slot_{i}" in profile.regions] or regions
+                for region_label, region in regions:
+                    title = label + (f" / {region_label}" if region_label else "")
+                    try:
+                        result = detector.diagnose(frame, name, region)
+                        count = len(result["matches"])
+                        multiple_ok = name in ("inventory_target", "slot_target", "slot_empty")
+                        outcome = "찾음" if count == 1 or (multiple_ok and count > 0) else "못 찾음" if count == 0 else "여러 곳 일치 · 자동 실행 불가"
+                        reports.append(f"[{outcome}] {title}: {count}개 / 최고 유사도 {result['similarity']:.1%} / 기준 {result['threshold']:.1%}")
+                        tw, th = result["size"]
+                        color = Qt.GlobalColor.green if count == 1 or multiple_ok else Qt.GlobalColor.magenta
+                        for x, y in result["matches"]:
+                            overlays.append((QRect(x-tw//2, y-th//2, tw, th), title, color))
+                        if count == 0:
+                            overlays.append((QRect(*result["best"]), title + " (기준 미달)", Qt.GlobalColor.darkYellow))
+                    except Exception as error:
+                        reports.append(f"[검사 오류] {title}: {error}")
+            self.view = CropView(frame)
+            self.view.overlays = overlays
+            self.view.selected.connect(lambda r: self.status.setText(f"선택: x={r.x()}, y={r.y()}, w={r.width()}, h={r.height()}"))
+            self.scroll.setWidget(self.view)
+            if overlays:
+                first = overlays[0][0]
+                self.scroll.ensureVisible(first.center().x(), first.center().y(), 150, 100)
+            self.status.setText("인식 테스트 완료 · 실제 입력 0회 · 초록: 찾음 / 노랑: 영역 또는 기준 미달 / 자홍: 모호함")
+        except Exception as error:
+            reports.append(f"[테스트 실패] {error}")
+            self.status.setText("인식 테스트 실패. 아래 결과를 확인하세요.")
+        finally:
+            if capture:
+                capture.close()
+            self.test_results.setPlainText("\n".join(reports))
+            self.restore_test_windows()
+
+    def reject(self):
+        self.test_timer.stop()
+        if self.restore_parent and self.parentWidget():
+            self.parentWidget().show()
+        self.restore_parent = False
+        super().reject()
 
     def save_crop(self):
         if self.view is None or min(self.view.rect.width(), self.view.rect.height()) < 5:

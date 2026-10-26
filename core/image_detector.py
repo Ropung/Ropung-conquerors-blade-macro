@@ -65,17 +65,47 @@ class Profile:
 
 
 class Detector:
-    def __init__(self, profile):
+    def __init__(self, profile, names=None):
         import cv2
         import numpy as np
         self.profile = profile
         self.images = {}
         for name, spec in profile.templates.items():
+            if names is not None and name not in names:
+                continue
+            if not valid_rect(spec.get("roi")):
+                raise SafetyError("잘못된 템플릿 검색 영역: " + name)
+            threshold = spec.get("threshold", .97)
+            if not isinstance(threshold, (int, float)) or not .90 <= threshold <= 1:
+                raise SafetyError("템플릿 임계값 범위: 0.90~1.00")
             path = profile.path.parent / spec["file"]
+            if not path.resolve().is_relative_to(profile.path.parent.resolve()):
+                raise SafetyError("잘못된 템플릿 경로: " + name)
             image = cv2.imdecode(np.fromfile(str(path), dtype=np.uint8), cv2.IMREAD_COLOR)
             if image is None or min(image.shape[:2]) < 5 or image.std() < 2:
                 raise SafetyError("유효한 상세 이미지가 필요합니다: " + name)
             self.images[name] = image
+
+    def diagnose(self, frame, name, region=None):
+        """Read-only report; score is image similarity, not a probability."""
+        import cv2
+        import numpy as np
+        spec = self.profile.templates[name]
+        roi = region or spec["roi"]
+        if not valid_rect(roi):
+            raise SafetyError("잘못된 검색 영역: " + name)
+        x, y, w, h = roi
+        template = self.images[name]
+        th, tw = template.shape[:2]
+        if tw > w or th > h:
+            raise SafetyError("템플릿이 검색 영역보다 큽니다: " + name)
+        scores = cv2.matchTemplate(frame[y:y+h, x:x+w], template, cv2.TM_SQDIFF_NORMED)
+        minimum, _, location, _ = cv2.minMaxLoc(scores)
+        similarity = 1 - float(minimum) if np.isfinite(minimum) else 0
+        matches = self.find_all(frame, name, region)
+        return {"similarity": similarity, "threshold": spec.get("threshold", .97),
+                "matches": matches, "size": (tw, th), "roi": roi,
+                "best": (x + location[0], y + location[1], tw, th)}
 
     def find_all(self, frame, name, region=None):
         import cv2
