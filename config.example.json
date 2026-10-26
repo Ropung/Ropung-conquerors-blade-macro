@@ -1,0 +1,8 @@
+{
+  "quantity": 15,
+  "window_title": "컨커러스 블레이드",
+  "profile": "calibration/profile.json",
+  "live_input": false,
+  "timeout_seconds": 10,
+  "completion_timeout_seconds": 90
+}
