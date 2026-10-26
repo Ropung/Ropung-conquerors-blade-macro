@@ -122,7 +122,9 @@ class SafetyTests(unittest.TestCase):
         direct.mouseDown.assert_called_once_with(button="left")
         direct.mouseUp.assert_called_once_with(button="left")
         mouse.click.assert_not_called()
-        delay.assert_called_once_with(.12)
+        mouse.moveTo.assert_not_called()
+        direct.moveTo.assert_called_once_with(100, 100)
+        self.assertEqual([entry.args[0] for entry in delay.call_args_list], [.15, .12])
 
     def test_stop_during_mouse_down_releases_button(self):
         backend = Mock()

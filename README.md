@@ -12,7 +12,7 @@ GUI, 수량 설정 저장, F6~F9, 작업 스레드, MSS/OpenCV 인식, 화면 �
 
 ## 설치와 실행 (PowerShell)
 
-기존 설치에서 업데이트했다면 `.\.venv\Scripts\python.exe -m pip install -r requirements.txt`를 다시 실행하세요. F/I/ESC 키는 PyDirectInput의 스캔코드/SendInput 방식으로 전송합니다. 마우스 클릭도 SendInput으로 0.12초간 눌렀다 뗍니다. 커서 이동과 수량 입력은 기존 PyAutoGUI 방식을 유지합니다. 이 변경은 실게임에서 F키가 받아들여지는지 별도 확인해야 합니다. [PyDirectInput 공식 설명](https://github.com/learncodebygaming/pydirectinput)
+기존 설치에서 업데이트했다면 `.\.venv\Scripts\python.exe -m pip install -r requirements.txt`를 다시 실행하세요. F/I/ESC 키는 PyDirectInput의 스캔코드/SendInput 방식으로 전송합니다. 마우스 클릭도 SendInput으로 0.12초간 눌렀다 뗍니다. 커서 이동도 SendInput으로 통일하고 이동 후 0.15초 대기한 뒤 클릭합니다. 수량 입력은 기존 PyAutoGUI 방식을 유지합니다. 목표/실제 커서 좌표를 로그에 남깁니다. 이 변경은 실게임에서 F키가 받아들여지는지 별도 확인해야 합니다. [PyDirectInput 공식 설명](https://github.com/learncodebygaming/pydirectinput)
 
 Python **3.12 x64**, Windows 10/11이 필요합니다. 쓰기 가능한 폴더에서 실행하세요.
 

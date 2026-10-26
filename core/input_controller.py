@@ -1,4 +1,5 @@
 from core.state_machine import SafetyError
+import logging
 
 
 class InputController:
@@ -33,10 +34,13 @@ class InputController:
         if not 0 <= x < 2560 or not 0 <= y < 1440:
             raise SafetyError("게임 영역 밖 입력 거부")
         left, top = self.window.origin
-        self._perform(self.backend.moveTo, left + x, top + y)
+        self._perform(self.key_backend.moveTo, left + x, top + y)
+        logging.getLogger("macro").info("마우스 이동: 게임 좌표 %s, 화면 목표 %s, 실제 커서 %s", point, (left+x, top+y), self.key_backend.position())
 
     def click(self, point, button="left"):
         self.move(point)
+        # Let the game process the mouse-move/hover event before button-down.
+        self.control.delay(.15)
         def tap_mouse():
             try:
                 self.key_backend.mouseDown(button=button)
