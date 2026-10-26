@@ -29,28 +29,30 @@ class InputController:
         self.control.checkpoint()
         self.window.check()
 
-    def move(self, point):
+    def move(self, point, *, fast=False):
         x, y = point
         if not 0 <= x < 2560 or not 0 <= y < 1440:
             raise SafetyError("게임 영역 밖 입력 거부")
         left, top = self.window.origin
-        self._perform(self.key_backend.moveTo, left + x, top + y)
+        options = {"_pause": False} if fast else {}
+        self._perform(self.key_backend.moveTo, left + x, top + y, **options)
         logging.getLogger("macro").info("마우스 이동: 게임 좌표 %s, 화면 목표 %s, 실제 커서 %s", point, (left+x, top+y), self.key_backend.position())
 
     def click(self, point, button="left", *, positioned=False):
         if not positioned:
             self.move(point)
         # Let the game process the mouse-move/hover event before button-down.
-        self.control.delay(.05 if positioned else .15)
+        self.control.delay(.01 if positioned else .15)
+        options = {"_pause": False} if positioned else {}
         def tap_mouse():
             try:
-                self.key_backend.mouseDown(button=button)
-                self.control.delay(.12)
+                self.key_backend.mouseDown(button=button, **options)
+                self.control.delay(.035 if positioned else .12)
             finally:
                 failsafe = self.key_backend.FAILSAFE
                 try:
                     self.key_backend.FAILSAFE = False
-                    self.key_backend.mouseUp(button=button)
+                    self.key_backend.mouseUp(button=button, **options)
                 finally:
                     self.key_backend.FAILSAFE = failsafe
         self._perform(tap_mouse)

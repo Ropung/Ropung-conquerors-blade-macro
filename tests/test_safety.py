@@ -126,6 +126,28 @@ class SafetyTests(unittest.TestCase):
         direct.moveTo.assert_called_once_with(100, 100)
         self.assertEqual([entry.args[0] for entry in delay.call_args_list], [.15, .12])
 
+    def test_fast_registration_click_skips_library_pauses(self):
+        backend = Mock()
+        control = RunControl()
+        with patch.dict("sys.modules", {"pyautogui": backend, "pydirectinput": backend}), patch.object(control, "delay") as delay:
+            inputs = InputController(Mock(origin=(0, 0)), control, enabled=True)
+            inputs.move((100, 100), fast=True)
+            inputs.click((100, 100), button="right", positioned=True)
+        backend.moveTo.assert_called_once_with(100, 100, _pause=False)
+        backend.mouseDown.assert_called_once_with(button="right", _pause=False)
+        backend.mouseUp.assert_called_once_with(button="right", _pause=False)
+        self.assertEqual([entry.args[0] for entry in delay.call_args_list], [.01, .035])
+
+    def test_fast_click_releases_button_on_stop(self):
+        backend = Mock()
+        control = RunControl()
+        backend.mouseDown.side_effect = lambda **kwargs: control.stop()
+        with patch.dict("sys.modules", {"pyautogui": backend, "pydirectinput": backend}):
+            inputs = InputController(Mock(origin=(0, 0)), control, enabled=True)
+            with self.assertRaises(Stopped):
+                inputs.click((100, 100), button="right", positioned=True)
+        backend.mouseUp.assert_called_once_with(button="right", _pause=False)
+
     def test_stop_during_mouse_down_releases_button(self):
         backend = Mock()
         control = RunControl()

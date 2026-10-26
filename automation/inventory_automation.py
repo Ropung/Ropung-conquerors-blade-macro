@@ -48,7 +48,7 @@ def register(session, amount, remaining, initial_count=0):
     for index, point in enumerate(points):
         # Fixed inventory cells do not shift when an item is staged. Recheck each
         # exact icon before right-click, rather than repeating full tooltip scans.
-        session.inputs.move(point)
+        session.inputs.move(point, fast=True)
         frame = session.frame()
         session.require(frame, "dismantle_panel")
         x, y = point
@@ -61,8 +61,8 @@ def register(session, amount, remaining, initial_count=0):
             session.inputs.click(point, button="right", positioned=True)
             # Only retry an item still visibly present at its original cell.
             # Wait for two observations so a delayed game update is not double-clicked.
-            for _ in range(2):
-                session.control.delay(.08)
+            for observation in range(2):
+                session.control.delay(.02 if observation == 0 else .12)
                 frame = session.frame()
                 session.require(frame, "dismantle_panel")
                 fresh = session.detector.find_all(frame, "inventory_target", region)
