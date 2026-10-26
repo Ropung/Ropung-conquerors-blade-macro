@@ -75,7 +75,7 @@ def capture_steps(quantity):
         ("인벤토리 아이템 설명", "인벤토리의 버들잎 면갑에 마우스를 올려 설명이 보이게 한 뒤 캡처하세요.", ["inventory_target_name", "inventory_target_blue"]),
         ("분해 등록", "대상만 분해 칸에 등록한 화면을 캡처하세요. 분해 실행 버튼은 아직 누르지 마세요.", ["slot_target", "dismantle_button"]),
     ]
-    for amount in dict.fromkeys(batches(quantity)):
+    for amount in dict.fromkeys([*batches(quantity), 1]):
         groups.append((f"{amount}개 분해 비용", f"버들잎 면갑 {amount}개만 등록하고 비용이 {amount * 300:,}인지 확인한 화면을 캡처하세요.", [f"dismantle_cost_{amount * 300}"]))
     groups.append(("분해 완료", "수동 분해 테스트 후 완료 팝업이 보일 때 캡처하세요. 확인을 누르기 전에 두 항목을 저장하세요.", ["complete_popup", "complete_confirm"]))
     return [(name, stage, hint) for stage, hint, names in groups for name in names]
