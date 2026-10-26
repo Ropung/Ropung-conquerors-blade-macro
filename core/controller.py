@@ -111,6 +111,8 @@ class Session:
 
     def click(self, name, after):
         if name == "shop_menu":
+            self.log("마구상점 메뉴 표시 확인 · 클릭 준비 0.7초 대기")
+            self.control.delay(.7)
             for attempt in range(3):
                 frame = self.frame()
                 if self.detector.present(frame, after):

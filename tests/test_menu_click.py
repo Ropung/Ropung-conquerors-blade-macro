@@ -14,6 +14,7 @@ class MenuClickTests(unittest.TestCase):
         session.inputs = Mock()
         session.expect = Mock()
         session.log = Mock()
+        session.control = Mock()
         return session
 
     def test_retries_missed_menu_click(self):
@@ -21,6 +22,7 @@ class MenuClickTests(unittest.TestCase):
         session.expect.side_effect = [SafetyError("화면 확인 시간 초과: shop_open"), None]
         session.click("shop_menu", "shop_open")
         self.assertEqual(session.inputs.click_ui.call_count, 2)
+        session.control.delay.assert_called_once_with(.7)
 
     def test_foreground_failure_does_not_retry(self):
         session = self.session()
