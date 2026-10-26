@@ -37,7 +37,18 @@ class InputController:
 
     def click(self, point, button="left"):
         self.move(point)
-        self._perform(self.backend.click, button=button)
+        def tap_mouse():
+            try:
+                self.key_backend.mouseDown(button=button)
+                self.control.delay(.12)
+            finally:
+                failsafe = self.key_backend.FAILSAFE
+                try:
+                    self.key_backend.FAILSAFE = False
+                    self.key_backend.mouseUp(button=button)
+                finally:
+                    self.key_backend.FAILSAFE = failsafe
+        self._perform(tap_mouse)
 
     def key(self, key):
         # Give a game frame time to observe key-down; always release on stop/error.

@@ -111,6 +111,28 @@ class SafetyTests(unittest.TestCase):
                 inputs.click((100, 100))
         backend.click.assert_not_called()
         backend.moveTo.assert_not_called()
+        backend.mouseDown.assert_not_called()
+
+    def test_mouse_click_uses_sendinput_and_releases(self):
+        mouse, direct = Mock(), Mock()
+        control = RunControl()
+        with patch.dict("sys.modules", {"pyautogui": mouse, "pydirectinput": direct}), patch.object(control, "delay") as delay:
+            inputs = InputController(Mock(origin=(0, 0)), control, enabled=True)
+            inputs.click((100, 100))
+        direct.mouseDown.assert_called_once_with(button="left")
+        direct.mouseUp.assert_called_once_with(button="left")
+        mouse.click.assert_not_called()
+        delay.assert_called_once_with(.12)
+
+    def test_stop_during_mouse_down_releases_button(self):
+        backend = Mock()
+        control = RunControl()
+        backend.mouseDown.side_effect = lambda **kwargs: control.stop()
+        with patch.dict("sys.modules", {"pyautogui": backend, "pydirectinput": backend}):
+            inputs = InputController(Mock(origin=(0, 0)), control, enabled=True)
+            with self.assertRaises(Stopped):
+                inputs.click((100, 100), button="right")
+        backend.mouseUp.assert_called_once_with(button="right")
 
     def test_pause_invalidates_previously_recognized_point(self):
         backend = Mock()
