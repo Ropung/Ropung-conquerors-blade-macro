@@ -125,11 +125,12 @@ class Session:
         self.wait_absent(marker)
 
     def hover_target(self, name):
-        point = self.detector.one(self.frame(), name)
+        frame = self.expect(name, timeout=3)
+        point = self.detector.one(frame, name)
         self.inputs.move(point)
         self.control.delay(.4)
         # The saved item row includes its name and blue grade; no extra tooltip crop.
-        self.require(self.frame(), name)
+        self.expect_all((name,), timeout=3)
 
 
 def run(config, root, control, log, change_state, single_cycle=False, max_dismantle=0):
