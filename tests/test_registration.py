@@ -18,6 +18,7 @@ class RegistrationTests(unittest.TestCase):
             targets.assert_any_call(session, 0)
         session.expect_all.assert_called_once()
         self.assertEqual(session.inputs.click.call_count, 3)
+        self.assertEqual(session.frame.call_count, 4)
 
     def test_changed_icon_prevents_click_and_batch_completion(self):
         session = Mock()

@@ -45,11 +45,10 @@ def register(session, amount, remaining, initial_count=0):
     session.expect_all(("dismantle_panel", "inventory_target_name", "inventory_target_blue"), timeout=3)
     template = session.detector.images["inventory_target"]
     th, tw = template.shape[:2]
+    frame = session.frame()
     for index, point in enumerate(points):
         # Fixed inventory cells do not shift when an item is staged. Recheck each
         # exact icon before right-click, rather than repeating full tooltip scans.
-        session.inputs.move(point, fast=True)
-        frame = session.frame()
         session.require(frame, "dismantle_panel")
         x, y = point
         left, top = max(0, x-tw//2-2), max(0, y-th//2-2)
@@ -57,6 +56,7 @@ def register(session, amount, remaining, initial_count=0):
         fresh = session.detector.find_all(frame, "inventory_target", region)
         if not any(abs(point[0]-p[0]) <= 2 and abs(point[1]-p[1]) <= 2 for p in fresh):
             raise SafetyError(f"등록 {initial_count + index + 1}번째: 대상 아이콘/위치가 바뀌었습니다.")
+        session.inputs.move(point, fast=True)
         for attempt in range(2):
             session.inputs.click(point, button="right", positioned=True)
             # Only retry an item still visibly present at its original cell.
@@ -77,6 +77,7 @@ def register(session, amount, remaining, initial_count=0):
         else:
             raise SafetyError(f"등록 {initial_count + index + 1}번째: 우클릭 후에도 아이템이 남아 있습니다.")
         session.log(f"등록 확인 {initial_count + index + 1}/{initial_count + amount}")
+        # The post-click frame also verifies the next fixed inventory cell.
     session.control.delay(.25)
     slots(session, initial_count + amount)
     targets(session, remaining - amount)

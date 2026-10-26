@@ -84,7 +84,9 @@ class ScreenCapture:
     def capture(self, foreground=True):
         import numpy as np
         frame = np.array(self.grabber.grab(self.window.check(foreground)))[:, :, :3].copy()
-        if frame.shape != (1440, 2560, 3) or frame.std() < 2:
+        # Sample the whole image on a regular grid instead of calculating
+        # variance over eleven million channels for every registration check.
+        if frame.shape != (1440, 2560, 3) or frame[::16, ::16].std() < 2:
             raise SafetyError("화면 캡처가 비어 있거나 잘못되었습니다.")
         return frame
 
