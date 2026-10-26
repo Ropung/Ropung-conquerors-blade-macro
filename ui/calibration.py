@@ -522,7 +522,7 @@ class CalibrationDialog(QDialog):
             if name.startswith("inventory_target_"):
                 # Tooltip position follows whichever inventory cell is hovered.
                 search = [0, 0, 2560, 1440]
-            self.data["templates"][name] = {"file": name + ".png", "roi": search, "threshold": .97}
+            self.data["templates"][name] = {"file": name + ".png", "roi": search, "threshold": .90}
         else:
             self.data["regions"][name] = roi
         self.data["reviewed_quantities"] = []

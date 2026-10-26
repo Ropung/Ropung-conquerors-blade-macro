@@ -19,6 +19,7 @@ class DetectorTests(unittest.TestCase):
         self.assertGreater(1 - float(score[0, 0]), .99)
         blank = np.full_like(search, 80)
         self.assertLess(1 - float(detector.match_scores(blank, template, "page_two")[0, 0]), .97)
+        self.assertGreater(1 - float(detector.match_scores(search, template, "shop_menu")[0, 0]), .99)
 
     def setUp(self):
         self.detector = Detector.__new__(Detector)
