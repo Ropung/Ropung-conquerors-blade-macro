@@ -110,6 +110,22 @@ class Session:
         raise SafetyError("팝업이 닫히지 않았습니다: " + name)
 
     def click(self, name, after):
+        if name == "shop_menu":
+            for attempt in range(3):
+                frame = self.frame()
+                if self.detector.present(frame, after):
+                    return
+                self.inputs.click(self.detector.one(frame, name))
+                try:
+                    self.expect(after, timeout=2)
+                    return
+                except SafetyError as error:
+                    if not str(error).startswith("화면 확인 시간 초과:") or attempt == 2:
+                        raise
+                    # Recheck the visible menu before every subsequent click;
+                    # foreground/stop/ambiguous-image errors are never retried.
+                    self.log("마구상점 메뉴가 남아 있음 · 클릭 재시도")
+            return
         frame = self.expect(name, timeout=3) if name == "page_two" else self.frame()
         self.inputs.click(self.detector.one(frame, name))
         self.expect(after)
