@@ -74,6 +74,7 @@ def run_step_test(config, root, control, key, log):
     # User activates the game; do not steal focus from another app.
     window.check()
     log("게임 창 활성화·해상도 확인 완료")
+    log("키 입력 방식: 스캔코드 / SendInput · 누름 시간 0.12초")
     capture = ScreenCapture(window)
     try:
         inputs = InputController(window, control, enabled=True)

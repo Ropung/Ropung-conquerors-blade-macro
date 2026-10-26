@@ -62,7 +62,7 @@ class SafetyTests(unittest.TestCase):
 
     def test_no_input_in_read_only_mode(self):
         backend = Mock()
-        with patch.dict("sys.modules", {"pyautogui": backend}):
+        with patch.dict("sys.modules", {"pyautogui": backend, "pydirectinput": backend}):
             inputs = InputController(Mock(origin=(0, 0)), RunControl())
             with self.assertRaises(SafetyError):
                 inputs.key("f")
@@ -72,18 +72,30 @@ class SafetyTests(unittest.TestCase):
     def test_key_is_held_briefly_and_released(self):
         backend = Mock()
         control = RunControl()
-        with patch.dict("sys.modules", {"pyautogui": backend}), patch.object(control, "delay") as delay:
+        with patch.dict("sys.modules", {"pyautogui": backend, "pydirectinput": backend}), patch.object(control, "delay") as delay:
             inputs = InputController(Mock(origin=(0, 0)), control, enabled=True)
             inputs.key("f")
         backend.keyDown.assert_called_once_with("f")
         backend.keyUp.assert_called_once_with("f")
         delay.assert_called_once_with(.12)
 
+    def test_game_key_uses_scan_code_backend_only(self):
+        mouse, scan = Mock(), Mock()
+        control = RunControl()
+        with patch.dict("sys.modules", {"pyautogui": mouse, "pydirectinput": scan}), patch.object(control, "delay"):
+            inputs = InputController(Mock(origin=(0, 0)), control, enabled=True)
+            inputs.key("f")
+        scan.keyDown.assert_called_once_with("f")
+        scan.keyUp.assert_called_once_with("f")
+        mouse.keyDown.assert_not_called()
+        mouse.keyUp.assert_not_called()
+        self.assertTrue(scan.FAILSAFE)
+
     def test_stop_during_key_hold_always_releases_key(self):
         backend = Mock()
         control = RunControl()
         backend.keyDown.side_effect = lambda key: control.stop()
-        with patch.dict("sys.modules", {"pyautogui": backend}):
+        with patch.dict("sys.modules", {"pyautogui": backend, "pydirectinput": backend}):
             inputs = InputController(Mock(origin=(0, 0)), control, enabled=True)
             with self.assertRaises(Stopped):
                 inputs.key("f")
@@ -93,7 +105,7 @@ class SafetyTests(unittest.TestCase):
         backend = Mock()
         control = RunControl()
         control.stop()
-        with patch.dict("sys.modules", {"pyautogui": backend}):
+        with patch.dict("sys.modules", {"pyautogui": backend, "pydirectinput": backend}):
             inputs = InputController(Mock(origin=(0, 0)), control, enabled=True)
             with self.assertRaises(Stopped):
                 inputs.click((100, 100))
@@ -103,7 +115,7 @@ class SafetyTests(unittest.TestCase):
     def test_pause_invalidates_previously_recognized_point(self):
         backend = Mock()
         control = RunControl()
-        with patch.dict("sys.modules", {"pyautogui": backend}):
+        with patch.dict("sys.modules", {"pyautogui": backend, "pydirectinput": backend}):
             inputs = InputController(Mock(origin=(0, 0)), control, enabled=True)
             control.pause()
             control.resume()

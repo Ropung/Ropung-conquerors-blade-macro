@@ -4,9 +4,16 @@ from core.state_machine import SafetyError
 class InputController:
     def __init__(self, window, control, enabled=False):
         import pyautogui
+        try:
+            import pydirectinput
+        except ImportError as error:
+            raise SafetyError("게임 키 입력 모듈이 없습니다. .\\.venv\\Scripts\\python.exe -m pip install pydirectinput==1.0.4 실행 후 재시작하세요.") from error
         self.backend = pyautogui
+        self.key_backend = pydirectinput
         self.backend.FAILSAFE = True
         self.backend.PAUSE = 0.05
+        self.key_backend.FAILSAFE = True
+        self.key_backend.PAUSE = 0.05
         self.window, self.control, self.enabled = window, control, enabled
         self.observation_revision = control.revision
 
@@ -36,10 +43,16 @@ class InputController:
         # Give a game frame time to observe key-down; always release on stop/error.
         def tap():
             try:
-                self.backend.keyDown(key)
+                self.key_backend.keyDown(key)
                 self.control.delay(.12)
             finally:
-                self.backend.keyUp(key)
+                # Releasing a held key must also work after a corner failsafe.
+                failsafe = self.key_backend.FAILSAFE
+                try:
+                    self.key_backend.FAILSAFE = False
+                    self.key_backend.keyUp(key)
+                finally:
+                    self.key_backend.FAILSAFE = failsafe
         self._perform(tap)
 
     def quantity(self, number):
