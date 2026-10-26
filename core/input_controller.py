@@ -33,7 +33,14 @@ class InputController:
         self._perform(self.backend.click, button=button)
 
     def key(self, key):
-        self._perform(self.backend.press, key)
+        # Give a game frame time to observe key-down; always release on stop/error.
+        def tap():
+            try:
+                self.backend.keyDown(key)
+                self.control.delay(.12)
+            finally:
+                self.backend.keyUp(key)
+        self._perform(tap)
 
     def quantity(self, number):
         self._perform(self.backend.hotkey, "ctrl", "a")

@@ -67,6 +67,27 @@ class SafetyTests(unittest.TestCase):
             with self.assertRaises(SafetyError):
                 inputs.key("f")
         backend.press.assert_not_called()
+        backend.keyDown.assert_not_called()
+
+    def test_key_is_held_briefly_and_released(self):
+        backend = Mock()
+        control = RunControl()
+        with patch.dict("sys.modules", {"pyautogui": backend}), patch.object(control, "delay") as delay:
+            inputs = InputController(Mock(origin=(0, 0)), control, enabled=True)
+            inputs.key("f")
+        backend.keyDown.assert_called_once_with("f")
+        backend.keyUp.assert_called_once_with("f")
+        delay.assert_called_once_with(.12)
+
+    def test_stop_during_key_hold_always_releases_key(self):
+        backend = Mock()
+        control = RunControl()
+        backend.keyDown.side_effect = lambda key: control.stop()
+        with patch.dict("sys.modules", {"pyautogui": backend}):
+            inputs = InputController(Mock(origin=(0, 0)), control, enabled=True)
+            with self.assertRaises(Stopped):
+                inputs.key("f")
+        backend.keyUp.assert_called_once_with("f")
 
     def test_stop_prevents_click(self):
         backend = Mock()

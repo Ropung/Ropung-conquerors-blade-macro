@@ -1,4 +1,5 @@
 import time
+import json
 
 from automation.dismantle_automation import dismantle
 from automation.inventory_automation import open_inventory, register, slots, targets
@@ -34,17 +35,34 @@ class Session:
         self.log("화면 확인: " + name)
         remaining = timeout or self.config.timeout_seconds
         stable = 0
+        last_frame = None
         while remaining > 0:
             self.control.checkpoint()
             start = time.monotonic()
             frame = self.frame()
+            last_frame = frame
             stable = stable + 1 if self.detector.present(frame, name) else 0
             if stable >= 2:
                 return frame
             remaining -= time.monotonic() - start
             self.control.delay(.1)
             remaining -= .1
-        raise SafetyError("화면 확인 시간 초과: " + name)
+        details = ""
+        if last_frame is not None:
+            try:
+                import cv2
+                report = self.detector.diagnose(last_frame, name)
+                details = f" (최고 유사도 {report['similarity']:.1%}, 기준 {report['threshold']:.1%}, 검색 영역 {report['roi']})"
+                folder = self.profile.path.parent.parent / "logs"
+                folder.mkdir(parents=True, exist_ok=True)
+                ok, encoded = cv2.imencode(".png", last_frame)
+                if ok:
+                    encoded.tofile(str(folder / "last_failure.png"))
+                (folder / "last_failure.json").write_text(json.dumps({"template": name, **report}, ensure_ascii=False, indent=2), encoding="utf-8")
+                self.log("인식 실패 화면 저장: " + str(folder / "last_failure.png"))
+            except Exception as error:
+                self.log("인식 실패 진단 저장 오류: " + str(error))
+        raise SafetyError("화면 확인 시간 초과: " + name + details)
 
     def wait_absent(self, name):
         remaining = self.config.timeout_seconds
