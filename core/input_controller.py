@@ -37,10 +37,11 @@ class InputController:
         self._perform(self.key_backend.moveTo, left + x, top + y)
         logging.getLogger("macro").info("마우스 이동: 게임 좌표 %s, 화면 목표 %s, 실제 커서 %s", point, (left+x, top+y), self.key_backend.position())
 
-    def click(self, point, button="left"):
-        self.move(point)
+    def click(self, point, button="left", *, positioned=False):
+        if not positioned:
+            self.move(point)
         # Let the game process the mouse-move/hover event before button-down.
-        self.control.delay(.15)
+        self.control.delay(.05 if positioned else .15)
         def tap_mouse():
             try:
                 self.key_backend.mouseDown(button=button)

@@ -37,7 +37,7 @@ def slots(session, expected):
 
 def register(session, amount, remaining, initial_count=0):
     slots(session, initial_count)
-    points = sorted(targets(session, remaining), key=lambda p: (p[1], p[0]))[:amount]
+    points = sorted(targets(session, remaining), key=lambda p: (p[1] // 50, p[0]))[:amount]
     if len(points) != amount:
         raise SafetyError("등록할 대상 아이콘 수가 부족합니다.")
     session.log(f"같은 아이템 {amount}개 확인 · 첫 아이템 이름·등급 확인 중")
@@ -57,8 +57,26 @@ def register(session, amount, remaining, initial_count=0):
         fresh = session.detector.find_all(frame, "inventory_target", region)
         if not any(abs(point[0]-p[0]) <= 2 and abs(point[1]-p[1]) <= 2 for p in fresh):
             raise SafetyError(f"등록 {initial_count + index + 1}번째: 대상 아이콘/위치가 바뀌었습니다.")
-        session.inputs.click(point, button="right")
-        session.log(f"등록 입력 {initial_count + index + 1}/{initial_count + amount}")
+        for attempt in range(2):
+            session.inputs.click(point, button="right", positioned=True)
+            # Only retry an item still visibly present at its original cell.
+            # Wait for two observations so a delayed game update is not double-clicked.
+            for _ in range(2):
+                session.control.delay(.08)
+                frame = session.frame()
+                session.require(frame, "dismantle_panel")
+                fresh = session.detector.find_all(frame, "inventory_target", region)
+                if not fresh:
+                    break
+            if not fresh:
+                break
+            if len(fresh) != 1 or abs(fresh[0][0]-point[0]) > 2 or abs(fresh[0][1]-point[1]) > 2:
+                raise SafetyError("등록 확인 중 아이템 위치가 바뀌었습니다.")
+            if attempt == 0:
+                session.log(f"등록 {initial_count + index + 1}번째 클릭 누락 · 1회 재시도")
+        else:
+            raise SafetyError(f"등록 {initial_count + index + 1}번째: 우클릭 후에도 아이템이 남아 있습니다.")
+        session.log(f"등록 확인 {initial_count + index + 1}/{initial_count + amount}")
     session.control.delay(.25)
     slots(session, initial_count + amount)
     targets(session, remaining - amount)
