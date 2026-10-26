@@ -16,4 +16,4 @@ def purchase(session, quantity):
     session.inputs.click(session.detector.one(frame, "buy_confirm"))
     session.wait_absent("buy_popup")
     session.expect("shop_open")
-    session.key("esc", "npc_ready")
+    session.close_ui("shop_open")

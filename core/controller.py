@@ -3,6 +3,7 @@ import time
 from automation.dismantle_automation import dismantle
 from automation.inventory_automation import open_inventory, register, slots, targets
 from automation.shop_automation import purchase
+from automation.npc_interaction import open_shop
 from core.image_detector import Detector, Profile
 from core.input_controller import InputController
 from core.screen_capture import GameWindow, ScreenCapture
@@ -67,6 +68,11 @@ class Session:
         self.inputs.key(name)
         self.expect(after)
 
+    def close_ui(self, marker):
+        self.require(self.frame(), marker)
+        self.inputs.key("esc")
+        self.wait_absent(marker)
+
     def hover_target(self, name):
         point = self.detector.one(self.frame(), name)
         self.inputs.move(point)
@@ -99,12 +105,14 @@ def run(config, root, control, log, change_state):
         window.activate()
         inputs = InputController(window, control, enabled=True)
         session = Session(config, profile, capture, inputs, control, log)
-        session.expect("npc_ready")
+        # First game input is F; only the resulting NPC menu must be recognized.
+        open_shop(session)
+        session.close_ui("shop_open")
         # Abort when a target already exists. This establishes purchase provenance.
         open_inventory(session)
         slots(session, 0)
         targets(session, 0)
-        session.key("esc", "npc_ready")
+        session.close_ui("inventory_open")
         cycle = 0
         while True:
             control.checkpoint()
@@ -120,7 +128,7 @@ def run(config, root, control, log, change_state):
                 remaining -= amount
                 change_state(State.DISMANTLING)
                 dismantle(session, amount, remaining)
-            session.key("esc", "npc_ready")
+            session.close_ui("inventory_open")
             cycle += 1
             log(f"반복 {cycle}회 완료 / {config.quantity}개 구매·분해")
     finally:

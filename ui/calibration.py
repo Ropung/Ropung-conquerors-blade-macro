@@ -14,7 +14,6 @@ from core.state_machine import batches
 
 
 LABELS = {
-    "npc_ready": "NPC 상호작용 안내 (F키 표시)",
     "shop_menu": "NPC 메뉴의 마구 상점 항목",
     "shop_open": "마구 상점이 열린 화면의 고정 표시",
     "page_two": "상점 2페이지 이동 버튼",
@@ -60,7 +59,6 @@ def is_region(name):
 
 def capture_steps(quantity):
     groups = [
-        ("NPC 앞", "상인 바로 앞에서 F키 안내가 보이는 화면을 캡처하세요.", ["npc_ready"]),
         ("NPC 메뉴", "게임에서 F키를 누른 뒤 NPC 메뉴를 캡처하세요.", ["shop_menu"]),
         ("상점", "마구 상점을 클릭해 들어간 화면을 캡처하세요.", ["shop_open", "page_two"]),
         ("상점 2페이지", "2페이지로 이동한 화면을 캡처하세요.", ["page_two_active", "shop_target", "buy_button"]),

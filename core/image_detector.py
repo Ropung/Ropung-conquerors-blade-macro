@@ -7,7 +7,7 @@ from core.state_machine import SafetyError
 def required_templates(quantity):
     from core.state_machine import batches
     names = {
-        "npc_ready", "shop_menu", "shop_open", "page_two", "page_two_active",
+        "shop_menu", "shop_open", "page_two", "page_two_active",
         "shop_target", "buy_button", "buy_popup",
         "shop_target_identity", "buy_target_name", "buy_target_blue",
         "inventory_target_name", "inventory_target_blue",
@@ -34,6 +34,8 @@ class Profile:
         if self.data.get("resolution") != [2560, 1440]:
             raise SafetyError("캘리브레이션 해상도가 2560×1440이 아닙니다.")
         self.templates = self.data.get("templates", {})
+        # Obsolete interaction prompt crops are no longer used or loaded.
+        self.templates.pop("npc_ready", None)
         self.regions = self.data.get("regions", {})
 
     def validate(self, quantity):

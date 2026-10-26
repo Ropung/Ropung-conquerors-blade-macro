@@ -29,10 +29,10 @@ with tempfile.TemporaryDirectory() as directory:
         names = [step[0] for step in capture_steps(15)]
         assert len(names) == len(set(names))
         assert set(required_templates(15)).issubset(names)
-        assert dialog.name.itemData(0) == "npc_ready"
+        assert dialog.name.itemData(0) == "shop_menu"
         assert dialog.name.findData("shop_target_identity") >= 0
         dialog.move_item(1)
-        assert dialog.name.currentData() == "shop_menu"
+        assert dialog.name.currentData() == "shop_open"
         # Test a partially calibrated profile using a synthetic game frame.
         target = np.random.default_rng(7).integers(30, 240, (12, 12, 3), dtype=np.uint8)
         frame = np.zeros((1440, 2560, 3), dtype=np.uint8)
