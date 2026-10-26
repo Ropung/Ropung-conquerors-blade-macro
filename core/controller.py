@@ -95,7 +95,8 @@ class Session:
         point = self.detector.one(self.frame(), name)
         self.inputs.move(point)
         self.control.delay(.4)
-        self.require(self.frame(), "shop_target_identity")
+        # The saved item row includes its name and blue grade; no extra tooltip crop.
+        self.require(self.frame(), name)
 
 
 def run(config, root, control, log, change_state, single_cycle=False):

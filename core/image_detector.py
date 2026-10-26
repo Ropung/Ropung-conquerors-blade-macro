@@ -9,7 +9,7 @@ def required_templates(quantity):
     names = {
         "shop_menu", "shop_open", "page_two", "page_two_active",
         "shop_target", "buy_button", "buy_popup",
-        "shop_target_identity", "buy_target_name", "buy_target_blue",
+        "buy_target_name", "buy_target_blue",
         "inventory_target_name", "inventory_target_blue",
         "quantity_field", "buy_confirm", "inventory_open", "dismantle_icon",
         "dismantle_panel", "inventory_target", "slot_target", "slot_empty",
@@ -35,7 +35,8 @@ class Profile:
             raise SafetyError("캘리브레이션 해상도가 2560×1440이 아닙니다.")
         self.templates = self.data.get("templates", {})
         # Obsolete interaction prompt crops are no longer used or loaded.
-        self.templates.pop("npc_ready", None)
+        for obsolete in ("npc_ready", "shop_target_name", "shop_target_blue", "shop_target_identity"):
+            self.templates.pop(obsolete, None)
         self.regions = self.data.get("regions", {})
 
     def validate(self, quantity):

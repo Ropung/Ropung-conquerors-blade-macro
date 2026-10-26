@@ -10,8 +10,8 @@ from core.state_machine import SafetyError
 NAVIGATION_STEPS = [
     ("npc", "1. F키 → 마구 상점 버튼 클릭", ["shop_menu", "shop_open"]),
     ("page", "2. 상점 2페이지로 이동", ["shop_open", "page_two", "page_two_active"]),
-    ("hover", "3. 버들잎 면갑에 마우스 올려 확인", ["page_two_active", "shop_target", "shop_target_identity"]),
-    ("select", "4. 버들잎 면갑 선택", ["page_two_active", "shop_target", "shop_target_identity", "buy_button"]),
+    ("hover", "3. 버들잎 면갑 항목 확인", ["page_two_active", "shop_target"]),
+    ("select", "4. 버들잎 면갑 선택", ["page_two_active", "shop_target", "buy_button"]),
     ("popup", "5. 구매 수량 창 열기 (구매 확정 안 함)", ["shop_open", "buy_button", "buy_popup"]),
     ("quantity", "6. 설정 수량 입력 (구매 확정 안 함)", ["buy_popup", "quantity_field"]),
     ("close_popup", "7. 구매 수량 창 닫기", ["buy_popup"]),

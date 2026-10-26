@@ -32,7 +32,8 @@ with tempfile.TemporaryDirectory() as directory:
         assert len(names) == len(set(names))
         assert set(required_templates(15)).issubset(names)
         assert dialog.name.itemData(0) == "shop_menu"
-        assert dialog.name.findData("shop_target_identity") >= 0
+        assert dialog.name.findData("shop_target_identity") == -1
+        assert dialog.name.findData("shop_target") >= 0
         dialog.move_item(1)
         assert dialog.name.currentData() == "shop_open"
         # Test a partially calibrated profile using a synthetic game frame.
