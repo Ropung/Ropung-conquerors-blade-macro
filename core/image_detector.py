@@ -39,8 +39,8 @@ class Profile:
             self.templates.pop(obsolete, None)
         self.regions = self.data.get("regions", {})
 
-    def validate(self, quantity):
-        missing = set(required_templates(quantity)) - self.templates.keys()
+    def validate(self, quantity, template_names=None):
+        missing = set(required_templates(quantity) if template_names is None else template_names) - self.templates.keys()
         if missing:
             raise SafetyError("템플릿 누락: " + ", ".join(sorted(missing)))
         for key in ["inventory", *[f"slot_{i}" for i in range(15)]]:

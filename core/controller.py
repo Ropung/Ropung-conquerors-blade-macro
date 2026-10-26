@@ -159,3 +159,40 @@ def run(config, root, control, log, change_state, single_cycle=False):
 
 def required_now(profile):
     return sorted(set(profile.templates) - {"slot_target", "slot_empty"})
+
+
+def run_dismantle_once(config, root, control, log, change_state):
+    """Test the already-owned items, with no NPC interaction or purchase."""
+    quantity = config.quantity
+    if not config.live_input or type(quantity) is not int or not 1 <= quantity <= 15:
+        raise SafetyError("실제 입력 활성화 및 1~15개 수량 설정이 필요합니다.")
+    names = {"dismantle_panel", "inventory_target", "slot_target", "slot_empty",
+             "inventory_target_name", "inventory_target_blue", "dismantle_button",
+             "complete_popup", "complete_confirm", f"dismantle_cost_{quantity * 300}"}
+    profile = Profile(root / config.profile)
+    profile.templates = {name: spec for name, spec in profile.templates.items() if name in names}
+    profile.validate(quantity, template_names=names)
+    Detector(profile)
+    log(f"3초 후 기존 버들잎 면갑 {quantity}개 분해 테스트. 게임의 분해 창을 활성화하세요. F9 중지.")
+    control.delay(3)
+    window = GameWindow(config.window_title)
+    window.check()
+    capture = ScreenCapture(window)
+    try:
+        session = Session(config, profile, capture, InputController(window, control, enabled=True), control, log)
+        session.expect("dismantle_panel")
+        try:
+            slots(session, quantity)
+        except SafetyError:
+            # Only accept all-empty or exactly the requested target count.
+            slots(session, 0)
+            targets(session, quantity)
+            change_state(State.REGISTERING)
+            register(session, quantity, quantity)
+        else:
+            targets(session, 0)
+        change_state(State.DISMANTLING)
+        dismantle(session, quantity, 0)
+        log(f"기존 대상 {quantity}개 분해 테스트 완료. 구매·재반복 없이 중지합니다.")
+    finally:
+        capture.close()

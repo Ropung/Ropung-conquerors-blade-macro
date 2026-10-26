@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, Q
                                QSpinBox, QPushButton, QPlainTextEdit, QCheckBox, QMessageBox)
 
 from core.config import Config, app_root
-from core.controller import run
+from core.controller import run, run_dismantle_once
 from core.hotkey_manager import HotkeyManager
 from core.state_machine import RunControl, State, Stopped
 from ui.calibration import CalibrationDialog
@@ -16,14 +16,18 @@ class Worker(QThread):
     message = Signal(str)
     state = Signal(str)
 
-    def __init__(self, config, root, control, single_cycle=True):
+    def __init__(self, config, root, control, single_cycle=True, dismantle_only=False):
         super().__init__()
         self.config, self.root, self.control = config, root, control
         self.single_cycle = single_cycle
+        self.dismantle_only = dismantle_only
 
     def run(self):
         try:
-            run(self.config, self.root, self.control, self.message.emit, lambda s: self.state.emit(s.value), single_cycle=self.single_cycle)
+            if self.dismantle_only:
+                run_dismantle_once(self.config, self.root, self.control, self.message.emit, lambda s: self.state.emit(s.value))
+            else:
+                run(self.config, self.root, self.control, self.message.emit, lambda s: self.state.emit(s.value), single_cycle=self.single_cycle)
         except Stopped:
             self.message.emit("사용자 중지. 자동 재개하지 않습니다.")
             self.state.emit(State.STOPPED.value)
@@ -95,6 +99,9 @@ class MainWindow(QMainWindow):
             button.clicked.connect(action)
             buttons.addWidget(button)
         layout.addLayout(buttons)
+        self.dismantle_test_button = QPushButton("기존 아이템 분해만 1회 테스트 (구매 안 함)")
+        self.dismantle_test_button.clicked.connect(self.start_dismantle_test)
+        layout.addWidget(self.dismantle_test_button)
         self.status = QLabel(State.IDLE.value)
         layout.addWidget(self.status)
         self.log_view = QPlainTextEdit()
@@ -142,7 +149,21 @@ class MainWindow(QMainWindow):
         self.current_state = text
         self.status.setText(State.PAUSED.value if self.control and not self.control.running.is_set() else text)
 
-    def start(self):
+    def start_dismantle_test(self):
+        if self.calibration_dialog is not None or (self.worker and self.worker.isRunning()):
+            return
+        if not self.live.isChecked() or not self.hotkeys:
+            QMessageBox.information(self, "분해 테스트", "실제 게임 입력 활성화를 체크하고 F9 중지 단축키 등록을 확인하세요.")
+            return
+        quantity = self.quantity.value()
+        if not 1 <= quantity <= 15:
+            QMessageBox.information(self, "분해 테스트", "이 테스트는 한 번에 1~15개입니다.")
+            return
+        text = f"기존 버들잎 면갑 {quantity}개를 실제로 분해합니다. 예상 비용 {quantity * 300:,} 전쟁 코인.\n구매는 하지 않으며 완료 후 중지합니다. 게임에서 분해 창을 열어두세요."
+        if QMessageBox.question(self, "실제 분해 1회 테스트", text, QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No) == QMessageBox.StandardButton.Yes:
+            self.start(dismantle_only=True)
+
+    def start(self, dismantle_only=False):
         if self.calibration_dialog is not None:
             return
         if self.worker and self.worker.isRunning():
@@ -153,7 +174,7 @@ class MainWindow(QMainWindow):
         config = Config(**vars(self.config))
         config.live_input = self.live.isChecked()
         self.control = RunControl()
-        self.worker = Worker(config, self.root, self.control, self.single_cycle.isChecked())
+        self.worker = Worker(config, self.root, self.control, self.single_cycle.isChecked(), dismantle_only=dismantle_only)
         self.worker.message.connect(self.log)
         self.worker.state.connect(self.set_state)
         self.worker.finished.connect(self.finished)
@@ -162,6 +183,7 @@ class MainWindow(QMainWindow):
         self.live.setEnabled(False)
         self.single_cycle.setEnabled(False)
         self.start_button.setEnabled(False)
+        self.dismantle_test_button.setEnabled(False)
         self.worker.start()
 
     def request_pause(self):
@@ -199,6 +221,7 @@ class MainWindow(QMainWindow):
         self.single_cycle.setEnabled(True)
         self.single_cycle.setChecked(True)
         self.start_button.setEnabled(True)
+        self.dismantle_test_button.setEnabled(True)
         if self.closing:
             self.close()
 
