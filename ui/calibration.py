@@ -20,8 +20,7 @@ LABELS = {
     "page_two": "상점 2페이지 이동 버튼",
     "page_two_active": "상점 2페이지 선택 표시",
     "shop_target": "상점의 버들잎 면갑 아이콘",
-    "shop_target_name": "상점 툴팁의 버들잎 면갑 이름",
-    "shop_target_blue": "상점 툴팁의 파란 등급 표시",
+    "shop_target_identity": "상점 툴팁의 버들잎 면갑 이름 + 파란 등급",
     "buy_button": "상점 구매 버튼",
     "buy_popup": "구매 수량 창의 고정 제목/표시",
     "quantity_field": "구매 수량 입력칸",
@@ -65,7 +64,7 @@ def capture_steps(quantity):
         ("NPC 메뉴", "게임에서 F키를 누른 뒤 NPC 메뉴를 캡처하세요.", ["shop_menu"]),
         ("상점", "마구 상점을 클릭해 들어간 화면을 캡처하세요.", ["shop_open", "page_two"]),
         ("상점 2페이지", "2페이지로 이동한 화면을 캡처하세요.", ["page_two_active", "shop_target", "buy_button"]),
-        ("상점 아이템 설명", "버들잎 면갑에 마우스를 올려 이름과 등급이 보이게 한 뒤 캡처하세요.", ["shop_target_name", "shop_target_blue"]),
+        ("상점 아이템 설명", "버들잎 면갑에 마우스를 올리고, 이름과 파란 등급 표시가 모두 들어가도록 한 번에 선택해 저장하세요.", ["shop_target_identity"]),
         ("구매 수량 창", f"구매 버튼을 누르고 수량을 {quantity}개로 입력한 화면을 캡처하세요. 최종 구매는 아직 누르지 마세요.",
          ["buy_popup", "quantity_field", f"quantity_{quantity}", "buy_target_name", "buy_target_blue", f"buy_cost_{quantity * 1600}", "buy_confirm"]),
         ("인벤토리", "상점을 닫고 I키로 인벤토리를 연 화면을 캡처하세요.", ["inventory_open", "dismantle_icon"]),
@@ -203,7 +202,9 @@ class CalibrationDialog(QDialog):
         if self.view is not None:
             self.view.rect = QRect()
             self.view.update()
-        if is_region(name):
+        if name == "shop_target_identity":
+            hint = "버들잎 면갑 이름과 파란 등급을 함께 포함하세요. 수량·능력치 등 변하는 정보는 제외하세요."
+        elif is_region(name):
             hint = "아이템을 검사할 영역 전체를 드래그하세요. 분해 칸은 한 칸씩 따로 지정합니다."
         elif name in ("buy_button", "buy_confirm", "dismantle_button", "complete_confirm", "page_two", "shop_menu", "dismantle_icon"):
             hint = "이 버튼의 글자·아이콘과 테두리가 들어가도록 드래그하세요. 일치한 이미지의 가운데를 클릭합니다."

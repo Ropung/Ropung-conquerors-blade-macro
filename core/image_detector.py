@@ -9,7 +9,7 @@ def required_templates(quantity):
     names = {
         "npc_ready", "shop_menu", "shop_open", "page_two", "page_two_active",
         "shop_target", "buy_button", "buy_popup",
-        "shop_target_name", "shop_target_blue", "buy_target_name", "buy_target_blue",
+        "shop_target_identity", "buy_target_name", "buy_target_blue",
         "inventory_target_name", "inventory_target_blue",
         "quantity_field", "buy_confirm", "inventory_open", "dismantle_icon",
         "dismantle_panel", "inventory_target", "slot_target", "slot_empty",

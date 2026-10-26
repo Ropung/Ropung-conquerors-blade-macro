@@ -71,7 +71,7 @@ class Session:
         point = self.detector.one(self.frame(), name)
         self.inputs.move(point)
         self.control.delay(.4)
-        self.require(self.frame(), "shop_target_name", "shop_target_blue")
+        self.require(self.frame(), "shop_target_identity")
 
 
 def run(config, root, control, log, change_state):
