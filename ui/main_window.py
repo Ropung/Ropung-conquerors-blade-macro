@@ -1,9 +1,10 @@
 import logging
+import time
 from logging.handlers import RotatingFileHandler
 
-from PySide6.QtCore import QThread, Signal
+from PySide6.QtCore import QThread, Signal, QTimer, Qt
 from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-                               QSpinBox, QPushButton, QPlainTextEdit, QCheckBox, QMessageBox)
+                               QSpinBox, QPushButton, QPlainTextEdit, QCheckBox, QMessageBox, QProgressBar, QApplication)
 
 from core.config import Config, app_root
 from core.controller import run, run_dismantle_once
@@ -15,6 +16,7 @@ from ui.calibration import CalibrationDialog
 class Worker(QThread):
     message = Signal(str)
     state = Signal(str)
+    failed = Signal(str)
 
     def __init__(self, config, root, control, single_cycle=True, dismantle_only=False):
         super().__init__()
@@ -34,6 +36,7 @@ class Worker(QThread):
         except Exception as error:
             logging.getLogger("macro").exception("실행 실패")
             self.message.emit(f"{type(error).__name__}: {error}")
+            self.failed.emit(str(error))
             self.state.emit(State.ERROR.value)
         else:
             self.state.emit(State.IDLE.value)
@@ -53,6 +56,11 @@ class MainWindow(QMainWindow):
         self.current_state = State.IDLE.value
         self.closing = False
         self.calibration_dialog = None
+        self.started_at = None
+        self.last_update_at = None
+        self.progress_timer = QTimer(self)
+        self.progress_timer.setInterval(500)
+        self.progress_timer.timeout.connect(self.refresh_progress)
         (self.root / "logs").mkdir(exist_ok=True)
         self.logger = logging.getLogger("macro")
         self.logger.setLevel(logging.INFO)
@@ -104,6 +112,25 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.dismantle_test_button)
         self.status = QLabel(State.IDLE.value)
         layout.addWidget(self.status)
+        self.activity = QProgressBar()
+        self.activity.setRange(0, 1)
+        self.activity.setValue(0)
+        layout.addWidget(self.activity)
+        self.current_step = QLabel("현재 단계: 대기")
+        self.current_step.setWordWrap(True)
+        layout.addWidget(self.current_step)
+        self.stop_reason = QLabel()
+        self.stop_reason.setWordWrap(True)
+        self.stop_reason.setStyleSheet("color: #c62828; font-weight: bold;")
+        layout.addWidget(self.stop_reason)
+        self.runtime_hint = QLabel("", self, Qt.WindowType.Tool | Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.WindowDoesNotAcceptFocus)
+        self.runtime_hint.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.runtime_hint.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
+        self.runtime_hint.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.runtime_hint.setStyleSheet("background: #202020; color: white; padding: 8px; border: 1px solid #888;")
+        self.runtime_hint.setWordWrap(True)
+        screen = QApplication.primaryScreen().availableGeometry()
+        self.runtime_hint.setGeometry(screen.x()+16, screen.bottom()-90, 660, 70)
         self.log_view = QPlainTextEdit()
         self.log_view.setReadOnly(True)
         self.log_view.setMaximumBlockCount(2000)
@@ -126,6 +153,24 @@ class MainWindow(QMainWindow):
     def log(self, message):
         self.logger.info(message)
         self.log_view.appendPlainText(message)
+        if self.worker and self.worker.isRunning():
+            self.last_update_at = time.monotonic()
+            self.current_step.setText("현재 단계: " + message)
+
+    def show_failure(self, reason):
+        labels = {"inventory_target_name": "인벤토리 대상 이름", "inventory_target_blue": "인벤토리 파란 등급", "complete_popup": "분해 완료 팝업"}
+        for key, label in labels.items():
+            reason = reason.replace(key, label)
+        self.stop_reason.setText("중지 이유: " + reason)
+
+    def refresh_progress(self):
+        if self.started_at is None:
+            return
+        elapsed = int(time.monotonic() - self.started_at)
+        idle = int(time.monotonic() - (self.last_update_at or self.started_at))
+        phase = State.PAUSED.value if self.control and not self.control.running.is_set() else self.current_state
+        self.status.setText(f"실행 중 · {phase} · 경과 {elapsed}초 · 마지막 진행 {idle}초 전")
+        self.runtime_hint.setText(self.status.text() + "\n" + self.current_step.text())
 
     def save_quantity(self, value):
         self.config.quantity = value
@@ -177,6 +222,7 @@ class MainWindow(QMainWindow):
         self.worker = Worker(config, self.root, self.control, self.single_cycle.isChecked(), dismantle_only=dismantle_only)
         self.worker.message.connect(self.log)
         self.worker.state.connect(self.set_state)
+        self.worker.failed.connect(self.show_failure)
         self.worker.finished.connect(self.finished)
         self.quantity.setEnabled(False)
         self.calibrate.setEnabled(False)
@@ -184,6 +230,15 @@ class MainWindow(QMainWindow):
         self.single_cycle.setEnabled(False)
         self.start_button.setEnabled(False)
         self.dismantle_test_button.setEnabled(False)
+        self.stop_reason.clear()
+        self.current_step.setText("현재 단계: 시작 준비")
+        self.current_state = State.CHECKING.value
+        self.started_at = self.last_update_at = time.monotonic()
+        self.activity.setRange(0, 0)
+        self.progress_timer.start()
+        if config.live_input:
+            self.runtime_hint.setText("시작 준비 · F9 중지")
+            self.runtime_hint.show()
         self.worker.start()
 
     def request_pause(self):
@@ -214,6 +269,14 @@ class MainWindow(QMainWindow):
             self.control.stop()
 
     def finished(self):
+        self.progress_timer.stop()
+        self.activity.setRange(0, 1)
+        self.activity.setValue(1 if self.current_state == State.IDLE.value else 0)
+        elapsed = int(time.monotonic() - self.started_at) if self.started_at else 0
+        outcome = "완료" if self.current_state == State.IDLE.value else self.current_state
+        self.status.setText(f"{outcome} · 총 {elapsed}초 · 실행 종료")
+        if self.runtime_hint.isVisible():
+            self.runtime_hint.setText(self.status.text() + "\n" + (self.stop_reason.text() or self.current_step.text()))
         self.quantity.setEnabled(True)
         self.calibrate.setEnabled(True)
         self.live.setEnabled(self.hotkeys is not None)
@@ -234,4 +297,5 @@ class MainWindow(QMainWindow):
             return
         if self.hotkeys:
             self.hotkeys.close()
+        self.runtime_hint.close()
         super().closeEvent(event)

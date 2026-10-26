@@ -2,7 +2,7 @@ import time
 import json
 
 from automation.dismantle_automation import dismantle
-from automation.inventory_automation import open_inventory, register, slots, targets
+from automation.inventory_automation import open_inventory, register, slots, targets, slot_count
 from automation.shop_automation import purchase
 from automation.npc_interaction import open_shop
 from core.image_detector import Detector, Profile
@@ -29,13 +29,42 @@ class Session:
 
     def require(self, frame, *names):
         for name in names:
-            self.detector.one(frame, name)
+            try:
+                self.detector.one(frame, name)
+            except SafetyError:
+                self.save_failure(frame, name)
+                raise
+
+    def save_failure(self, frame, name):
+        try:
+            import cv2
+            report = self.detector.diagnose(frame, name)
+            folder = self.profile.path.parent.parent / "logs"
+            folder.mkdir(parents=True, exist_ok=True)
+            ok, encoded = cv2.imencode(".png", frame)
+            if ok:
+                encoded.tofile(str(folder / "last_failure.png"))
+            (folder / "last_failure.json").write_text(json.dumps({"template": name, **report}, ensure_ascii=False, indent=2), encoding="utf-8")
+            self.log(f"인식 실패 {name}: 유사도 {report['similarity']:.1%} / 기준 {report['threshold']:.1%} · logs/last_failure.png 저장")
+        except Exception as error:
+            self.log("인식 실패 진단 저장 오류: " + str(error))
+
+    def expect_all(self, names, timeout=3):
+        remaining = timeout
+        while remaining > 0:
+            frame = self.frame()
+            if all(self.detector.present(frame, name) for name in names):
+                return frame
+            self.control.delay(.15)
+            remaining -= .15
+        self.require(frame, *names)
 
     def expect(self, name, timeout=None):
         self.log("화면 확인: " + name)
         remaining = timeout or self.config.timeout_seconds
         stable = 0
         last_frame = None
+        last_notice = time.monotonic()
         while remaining > 0:
             self.control.checkpoint()
             start = time.monotonic()
@@ -44,6 +73,9 @@ class Session:
             stable = stable + 1 if self.detector.present(frame, name) else 0
             if stable >= 2:
                 return frame
+            if time.monotonic() - last_notice >= 2:
+                self.log(f"화면 대기 중: {name} · 제한 시간 약 {max(0, remaining):.0f}초 남음")
+                last_notice = time.monotonic()
             remaining -= time.monotonic() - start
             self.control.delay(.1)
             remaining -= .1
@@ -181,16 +213,14 @@ def run_dismantle_once(config, root, control, log, change_state):
     try:
         session = Session(config, profile, capture, InputController(window, control, enabled=True), control, log)
         session.expect("dismantle_panel")
-        try:
-            slots(session, quantity)
-        except SafetyError:
-            # Only accept all-empty or exactly the requested target count.
-            slots(session, 0)
-            targets(session, quantity)
+        registered = slot_count(session)
+        if registered > quantity:
+            raise SafetyError(f"등록된 대상 {registered}개가 설정 수량 {quantity}개보다 많습니다.")
+        targets(session, quantity - registered)
+        log(f"등록 상태 확인: {registered}/{quantity}개 · 인벤토리 {quantity - registered}개")
+        if registered < quantity:
             change_state(State.REGISTERING)
-            register(session, quantity, quantity)
-        else:
-            targets(session, 0)
+            register(session, quantity - registered, quantity - registered, initial_count=registered)
         change_state(State.DISMANTLING)
         dismantle(session, quantity, 0)
         log(f"기존 대상 {quantity}개 분해 테스트 완료. 구매·재반복 없이 중지합니다.")

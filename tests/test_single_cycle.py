@@ -13,8 +13,9 @@ class SingleCycleTests(unittest.TestCase):
         with ExitStack() as stack:
             mocks = {name: stack.enter_context(patch("core.controller." + name)) for name in (
                 "Profile", "Detector", "GameWindow", "ScreenCapture", "InputController", "Session",
-                "slots", "targets", "purchase", "register", "dismantle")}
+                "slots", "slot_count", "targets", "purchase", "register", "dismantle")}
             mocks["Profile"].return_value.templates = {}
+            mocks["slot_count"].return_value = 15
             run_dismantle_once(Config(quantity=15, live_input=True), Path("."), Mock(), Mock(), Mock())
             mocks["purchase"].assert_not_called()
             mocks["register"].assert_not_called()

@@ -24,6 +24,12 @@ with tempfile.TemporaryDirectory() as directory:
         assert window.quantity.value() == 15
         assert not window.live.isChecked()
         assert window.single_cycle.isChecked()
+        assert window.stop_reason.text() == ""
+        window.show_failure("inventory_target_name: 인식 실패")
+        assert "인벤토리 대상 이름" in window.stop_reason.text()
+        window.started_at = window.last_update_at = 0
+        window.refresh_progress()
+        assert "경과" in window.status.text()
         window.quantity.setValue(20)
         assert (Path(directory) / "config.json").is_file()
         config = Config(quantity=15)
