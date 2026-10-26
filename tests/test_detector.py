@@ -9,6 +9,17 @@ from core.state_machine import SafetyError
 
 
 class DetectorTests(unittest.TestCase):
+    def test_page_arrow_ignores_changing_translucent_background(self):
+        template = np.full((30, 20, 3), 20, dtype=np.uint8)
+        cv2.polylines(template, [np.array([[4, 4], [15, 15], [4, 26]])], False, (200, 200, 200), 2)
+        search = template.copy()
+        search[np.all(template == 20, axis=2)] = 80
+        detector = Detector.__new__(Detector)
+        score = detector.match_scores(search, template, "page_two")
+        self.assertGreater(1 - float(score[0, 0]), .99)
+        blank = np.full_like(search, 80)
+        self.assertLess(1 - float(detector.match_scores(blank, template, "page_two")[0, 0]), .97)
+
     def setUp(self):
         self.detector = Detector.__new__(Detector)
         self.template = np.random.default_rng(12).integers(30, 240, (12, 12, 3), dtype=np.uint8)

@@ -110,7 +110,7 @@ class Session:
         raise SafetyError("팝업이 닫히지 않았습니다: " + name)
 
     def click(self, name, after):
-        frame = self.frame()
+        frame = self.expect(name, timeout=3) if name == "page_two" else self.frame()
         self.inputs.click(self.detector.one(frame, name))
         self.expect(after)
 

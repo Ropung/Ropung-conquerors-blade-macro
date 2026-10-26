@@ -68,6 +68,19 @@ class Profile:
 
 
 class Detector:
+    def match_scores(self, search, template, name):
+        import cv2
+        import numpy as np
+        if name in ("page_two", "page_two_active"):
+            # Page controls are translucent over the animated horse. Compare
+            # only their bright arrow/digit strokes, not the moving backdrop.
+            mask = (cv2.cvtColor(template, cv2.COLOR_BGR2GRAY) > 100).astype(np.uint8) * 255
+            if np.count_nonzero(mask) < 5:
+                raise SafetyError("페이지 화살표/숫자 획이 보이도록 다시 캡처하세요: " + name)
+            scores = cv2.matchTemplate(search, template, cv2.TM_SQDIFF_NORMED, mask=mask)
+            return np.nan_to_num(scores, nan=1.0, posinf=1.0, neginf=1.0)
+        return cv2.matchTemplate(search, template, cv2.TM_SQDIFF_NORMED)
+
     def __init__(self, profile, names=None):
         import cv2
         import numpy as np
@@ -106,7 +119,7 @@ class Detector:
         th, tw = template.shape[:2]
         if tw > w or th > h:
             raise SafetyError("템플릿이 검색 영역보다 큽니다: " + name)
-        scores = cv2.matchTemplate(frame[y:y+h, x:x+w], template, cv2.TM_SQDIFF_NORMED)
+        scores = self.match_scores(frame[y:y+h, x:x+w], template, name)
         minimum, _, location, _ = cv2.minMaxLoc(scores)
         similarity = 1 - float(minimum) if np.isfinite(minimum) else 0
         matches = self.find_all(frame, name, region)
@@ -123,7 +136,7 @@ class Detector:
         th, tw = template.shape[:2]
         if tw > w or th > h:
             raise SafetyError("템플릿이 검색 영역보다 큽니다: " + name)
-        scores = cv2.matchTemplate(frame[y:y+h, x:x+w], template, cv2.TM_SQDIFF_NORMED)
+        scores = self.match_scores(frame[y:y+h, x:x+w], template, name)
         limit = 1 - spec.get("threshold", .97)
         found = []
         while True:
