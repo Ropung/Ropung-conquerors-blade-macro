@@ -86,6 +86,10 @@ class Detector:
             image = cv2.imdecode(np.fromfile(str(path), dtype=np.uint8), cv2.IMREAD_COLOR)
             if image is None or min(image.shape[:2]) < 5 or image.std() < 2:
                 raise SafetyError("유효한 상세 이미지가 필요합니다: " + name)
+            if name in ("slot_empty", "slot_target"):
+                for key, rect in profile.regions.items():
+                    if key.startswith("slot_") and valid_rect(rect) and (image.shape[1] > rect[2] or image.shape[0] > rect[3]):
+                        raise SafetyError(f"{name}: 이미지가 분해 한 칸보다 큽니다. 여러 칸 전체가 아닌 한 칸 내부만 다시 저장하세요.")
             self.images[name] = image
 
     def diagnose(self, frame, name, region=None):

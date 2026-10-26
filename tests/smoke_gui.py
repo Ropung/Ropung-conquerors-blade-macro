@@ -23,6 +23,7 @@ with tempfile.TemporaryDirectory() as directory:
         assert window.quantity.maximum() == 20
         assert window.quantity.value() == 15
         assert not window.live.isChecked()
+        assert window.single_cycle.isChecked()
         window.quantity.setValue(20)
         assert (Path(directory) / "config.json").is_file()
         config = Config(quantity=15)

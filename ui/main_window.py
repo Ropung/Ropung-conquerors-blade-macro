@@ -16,13 +16,14 @@ class Worker(QThread):
     message = Signal(str)
     state = Signal(str)
 
-    def __init__(self, config, root, control):
+    def __init__(self, config, root, control, single_cycle=True):
         super().__init__()
         self.config, self.root, self.control = config, root, control
+        self.single_cycle = single_cycle
 
     def run(self):
         try:
-            run(self.config, self.root, self.control, self.message.emit, lambda s: self.state.emit(s.value))
+            run(self.config, self.root, self.control, self.message.emit, lambda s: self.state.emit(s.value), single_cycle=self.single_cycle)
         except Stopped:
             self.message.emit("사용자 중지. 자동 재개하지 않습니다.")
             self.state.emit(State.STOPPED.value)
@@ -81,6 +82,9 @@ class MainWindow(QMainWindow):
         layout.addLayout(row)
         self.live = QCheckBox("실제 게임 입력 활성화 (보정 검토 필요 · 재실행 시 해제)")
         layout.addWidget(self.live)
+        self.single_cycle = QCheckBox("1회 테스트 후 자동 중지 (처음에는 1개로 테스트)")
+        self.single_cycle.setChecked(True)
+        layout.addWidget(self.single_cycle)
         buttons = QHBoxLayout()
         self.start_button = QPushButton("F6 시작 / 읽기 전용 진단")
         self.pause_button = QPushButton("F7 일시정지")
@@ -149,13 +153,14 @@ class MainWindow(QMainWindow):
         config = Config(**vars(self.config))
         config.live_input = self.live.isChecked()
         self.control = RunControl()
-        self.worker = Worker(config, self.root, self.control)
+        self.worker = Worker(config, self.root, self.control, self.single_cycle.isChecked())
         self.worker.message.connect(self.log)
         self.worker.state.connect(self.set_state)
         self.worker.finished.connect(self.finished)
         self.quantity.setEnabled(False)
         self.calibrate.setEnabled(False)
         self.live.setEnabled(False)
+        self.single_cycle.setEnabled(False)
         self.start_button.setEnabled(False)
         self.worker.start()
 
@@ -191,6 +196,8 @@ class MainWindow(QMainWindow):
         self.calibrate.setEnabled(True)
         self.live.setEnabled(self.hotkeys is not None)
         self.live.setChecked(False)
+        self.single_cycle.setEnabled(True)
+        self.single_cycle.setChecked(True)
         self.start_button.setEnabled(True)
         if self.closing:
             self.close()

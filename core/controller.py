@@ -98,7 +98,7 @@ class Session:
         self.require(self.frame(), "shop_target_identity")
 
 
-def run(config, root, control, log, change_state):
+def run(config, root, control, log, change_state, single_cycle=False):
     config.validate()
     change_state(State.CHECKING)
     profile = Profile(root / config.profile)
@@ -149,6 +149,9 @@ def run(config, root, control, log, change_state):
             session.close_ui("inventory_open")
             cycle += 1
             log(f"반복 {cycle}회 완료 / {config.quantity}개 구매·분해")
+            if single_cycle:
+                log("1회 테스트 완료. 추가 구매 없이 자동 중지합니다.")
+                return
     finally:
         capture.close()
 
