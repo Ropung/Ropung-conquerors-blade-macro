@@ -81,7 +81,12 @@ class InputController:
         left, top = self.window.origin
         target = (left + x, top + y)
         self._perform(self.backend.moveTo, *target, duration=.12)
-        self.control.delay(.15)
+        # SetCursorPos can update the Windows cursor without updating the
+        # game's hover state. Emit a tiny relative move inside the menu hitbox.
+        self._perform(self.key_backend.moveRel, 1, 0, relative=True, _pause=False)
+        self.control.delay(.08)
+        self._perform(self.key_backend.moveRel, -1, 0, relative=True, _pause=False)
+        self.control.delay(.3)
         def tap():
             actual = self.backend.position()
             if abs(actual[0] - target[0]) > 3 or abs(actual[1] - target[1]) > 3:

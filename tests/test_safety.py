@@ -194,6 +194,7 @@ class SafetyTests(unittest.TestCase):
         mouse.mouseDown.assert_called_once_with(button="left")
         mouse.mouseUp.assert_called_once_with(button="left")
         direct.mouseDown.assert_not_called()
+        self.assertEqual([c.args for c in direct.moveRel.call_args_list], [(1, 0), (-1, 0)])
 
     def test_menu_cursor_mismatch_prevents_click(self):
         mouse = Mock()
