@@ -3,9 +3,12 @@ from automation.npc_interaction import open_shop
 
 def purchase(session, quantity):
     open_shop(session)
-    session.hover_target("shop_target")
-    session.click("shop_target", "buy_button")
-    session.click("buy_button", "buy_popup")
+    # Hovering the item changes the whole row's background. Verify its identity
+    # and the row-specific purchase button together, then open that button.
+    frame = session.expect("shop_target", timeout=3)
+    session.require(frame, "shop_target", "buy_button")
+    session.inputs.click(session.detector.one(frame, "buy_button"))
+    session.expect("buy_popup")
     session.click("quantity_field", "buy_popup")
     session.inputs.quantity(quantity)
     session.control.delay(.25)
