@@ -98,7 +98,7 @@ class SafetyTests(unittest.TestCase):
             inputs.quantity(15)
         scan.keyDown.assert_not_called()
         mouse.hotkey.assert_not_called()
-        mouse.press.assert_called_once_with("right")
+        mouse.press.assert_not_called()
         mouse.write.assert_called_once_with("5", interval=.08)
     def test_stop_during_key_hold_always_releases_key(self):
         backend = Mock()

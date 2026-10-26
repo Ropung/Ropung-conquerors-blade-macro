@@ -111,8 +111,6 @@ class InputController:
             return
         if 10 <= number <= 19:
             # Caller verified the fresh popup still contains its default 1.
-            # Right collapses a selection to its end without Home/End shortcuts.
-            self._perform(self.backend.press, "right")
             self._perform(self.backend.write, str(number)[1:], interval=.08)
         else:
             self._perform(self.backend.hotkey, "ctrl", "a")

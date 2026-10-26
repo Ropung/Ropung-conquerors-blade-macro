@@ -1,4 +1,5 @@
 import unittest
+from types import SimpleNamespace
 from unittest.mock import Mock
 
 from core.controller import Session
@@ -36,3 +37,11 @@ class MenuClickTests(unittest.TestCase):
         session.detector.present.return_value = True
         session.click("shop_menu", "shop_open")
         session.inputs.click_ui.assert_not_called()
+
+    def test_quantity_focus_click_stays_inside_right_side_of_textbox(self):
+        session = self.session()
+        session.detector.one.return_value = (1279, 769)
+        session.detector.images = {"quantity_field": SimpleNamespace(shape=(50, 183, 3))}
+        session.click("quantity_field", "buy_popup")
+        session.inputs.click_ui.assert_called_once_with((1340, 769))
+        session.inputs.click.assert_not_called()

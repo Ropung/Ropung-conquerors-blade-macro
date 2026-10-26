@@ -129,7 +129,14 @@ class Session:
                     self.log("마구상점 메뉴가 남아 있음 · 클릭 재시도")
             return
         frame = self.expect(name, timeout=3) if name == "page_two" else self.frame()
-        self.inputs.click(self.detector.one(frame, name))
+        point = self.detector.one(frame, name)
+        if name == "quantity_field":
+            # Click inside the right end of the textbox so the caret follows 1.
+            # Arrow keys can move focus to the adjacent plus button in this UI.
+            width = self.detector.images[name].shape[1]
+            self.inputs.click_ui((point[0] + width // 3, point[1]))
+        else:
+            self.inputs.click(point)
         self.expect(after)
 
     def key(self, name, after):
