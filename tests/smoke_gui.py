@@ -11,6 +11,7 @@ from ui.main_window import MainWindow
 from ui.calibration import CalibrationDialog, capture_steps
 from core.config import Config, write_json
 from core.image_detector import required_templates
+import json
 import cv2
 import numpy as np
 
@@ -42,6 +43,13 @@ with tempfile.TemporaryDirectory() as directory:
         write_json(dialog.path, {"resolution": [2560, 1440], "templates": {
             "shop_menu": {"file": "shop_menu.png", "roi": [0, 0, 100, 100], "threshold": .97}}, "regions": {}})
         dialog.test_names = ["shop_menu"]
+        dialog.data = json.loads(dialog.path.read_text(encoding="utf-8"))
+        dialog.name.setCurrentIndex(dialog.name.findData("shop_menu"))
+        dialog.update_saved_preview()
+        assert not dialog.saved_preview.pixmap().isNull()
+        assert "shop_menu.png" in dialog.preview_details.text()
+        assert not dialog.action_enabled.isChecked()
+        assert dialog.action_choice.itemData(0) == "npc"
         with patch("ui.calibration.GameWindow"), patch("ui.calibration.ScreenCapture") as capture:
             capture.return_value.capture.return_value = frame
             dialog.run_recognition_test()

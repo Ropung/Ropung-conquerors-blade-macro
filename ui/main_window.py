@@ -47,6 +47,7 @@ class MainWindow(QMainWindow):
         self.control = None
         self.current_state = State.IDLE.value
         self.closing = False
+        self.calibration_dialog = None
         (self.root / "logs").mkdir(exist_ok=True)
         self.logger = logging.getLogger("macro")
         self.logger.setLevel(logging.INFO)
@@ -127,13 +128,19 @@ class MainWindow(QMainWindow):
         if self.worker and self.worker.isRunning():
             return
         self.live.setChecked(False)
-        CalibrationDialog(self.config, self.root, self).exec()
+        self.calibration_dialog = CalibrationDialog(self.config, self.root, self)
+        try:
+            self.calibration_dialog.exec()
+        finally:
+            self.calibration_dialog = None
 
     def set_state(self, text):
         self.current_state = text
         self.status.setText(State.PAUSED.value if self.control and not self.control.running.is_set() else text)
 
     def start(self):
+        if self.calibration_dialog is not None:
+            return
         if self.worker and self.worker.isRunning():
             return
         if self.live.isChecked() and not self.hotkeys:
@@ -161,6 +168,8 @@ class MainWindow(QMainWindow):
         # Set the thread-safe event directly from the hotkey callback, before Qt dispatch.
         if self.control:
             self.control.stop()
+        if self.calibration_dialog is not None:
+            self.calibration_dialog.stop_action()
         self.stop_requested.emit()
 
     def pause(self):

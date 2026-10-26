@@ -2,15 +2,16 @@ import json
 from pathlib import Path
 
 import cv2
-from PySide6.QtCore import Qt, QRect, Signal, QTimer
+from PySide6.QtCore import Qt, QRect, Signal, QTimer, QThread
 from PySide6.QtGui import QImage, QPixmap, QPainter, QPen
 from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-                               QComboBox, QMessageBox, QScrollArea, QPlainTextEdit)
+                               QComboBox, QMessageBox, QScrollArea, QPlainTextEdit, QCheckBox)
 
 from core.config import write_json
 from core.image_detector import Detector, Profile, required_templates, valid_rect
 from core.screen_capture import GameWindow, ScreenCapture
-from core.state_machine import batches
+from core.state_machine import batches, RunControl, Stopped
+from core.step_test import NAVIGATION_STEPS, run_step_test
 
 
 LABELS = {
@@ -122,6 +123,25 @@ class CropView(QLabel):
             painter.drawText(rect.x(), max(15, rect.y() - 4), label)
 
 
+class NavigationWorker(QThread):
+    message = Signal(str)
+    captured = Signal(object)
+
+    def __init__(self, config, root, control, key, parent=None):
+        super().__init__(parent)
+        self.config, self.root, self.control, self.key = config, root, control, key
+
+    def run(self):
+        try:
+            frame = run_step_test(self.config, self.root, self.control, self.key, self.message.emit)
+            self.captured.emit(frame)
+            self.message.emit("선택 동작 1회 완료. 다음 동작은 자동 실행하지 않습니다.")
+        except Stopped:
+            self.message.emit("F9/사용자 요청으로 동작 테스트 중지")
+        except Exception as error:
+            self.message.emit(f"동작 테스트 중지: {error}")
+
+
 class CalibrationDialog(QDialog):
     def __init__(self, config, root, parent=None):
         super().__init__(parent)
@@ -135,6 +155,9 @@ class CalibrationDialog(QDialog):
         self.test_timer.timeout.connect(self.run_recognition_test)
         self.test_names = []
         self.restore_parent = False
+        self.action_worker = None
+        self.action_control = None
+        self.close_after_action = False
         self.setWindowTitle("2560×1440 게임 화면 보정 (읽기 전용 캡처)")
         self.resize(1200, 850)
         layout = QVBoxLayout(self)
@@ -177,6 +200,28 @@ class CalibrationDialog(QDialog):
         self.help_text = QLabel()
         self.help_text.setWordWrap(True)
         layout.addWidget(self.help_text)
+        preview_row = QHBoxLayout()
+        self.saved_preview = QLabel("저장된 기준 이미지: 항목을 선택하세요.")
+        self.saved_preview.setMinimumHeight(64)
+        preview_row.addWidget(self.saved_preview, 1)
+        self.preview_details = QLabel()
+        self.preview_details.setWordWrap(True)
+        preview_row.addWidget(self.preview_details, 1)
+        enlarge = QPushButton("저장 이미지 원본 보기")
+        enlarge.clicked.connect(self.show_saved_image)
+        preview_row.addWidget(enlarge)
+        layout.addLayout(preview_row)
+        self.action_enabled = QCheckBox("동작 테스트에서 실제 키·클릭 허용 (구매 확정·분해 실행 제외)")
+        layout.addWidget(self.action_enabled)
+        actions = QHBoxLayout()
+        self.action_choice = QComboBox()
+        for key, label, _ in NAVIGATION_STEPS:
+            self.action_choice.addItem(label, key)
+        actions.addWidget(self.action_choice, 1)
+        action_button = QPushButton("선택 동작 1회 실행 (3초 후 · F9 중지)")
+        action_button.clicked.connect(self.start_action)
+        actions.addWidget(action_button)
+        layout.addLayout(actions)
         self.name.currentIndexChanged.connect(self.show_help)
         self.status = QLabel("캡처 대기")
         layout.addWidget(self.status)
@@ -217,6 +262,8 @@ class CalibrationDialog(QDialog):
         if not name:
             self.help_text.clear()
             self.stage_text.clear()
+            self.saved_preview.clear()
+            self.preview_details.clear()
             return
         _, stage, instructions = next(step for step in capture_steps(self.config.quantity) if step[0] == name)
         self.stage_text.setText(f"현재 단계: {stage}\n{instructions}")
@@ -235,6 +282,85 @@ class CalibrationDialog(QDialog):
             hint = "해당 글자·아이콘이 선명하게 들어가도록 드래그하세요. 화면이 바뀌면 게임 캡처를 다시 누르세요."
         saved = name in self.data["regions" if is_region(name) else "templates"]
         self.help_text.setText(f"{'저장됨' if saved else '미저장'} · {hint}")
+        self.update_saved_preview()
+
+    def saved_image_path(self):
+        name = self.name.currentData()
+        spec = self.data.get("templates", {}).get(name)
+        if not spec or is_region(name):
+            return None
+        path = (self.path.parent / spec["file"]).resolve()
+        return path if path.is_relative_to(self.path.parent.resolve()) else None
+
+    def update_saved_preview(self):
+        name = self.name.currentData()
+        path = self.saved_image_path()
+        pixmap = QPixmap(str(path)) if path and path.is_file() else QPixmap()
+        self.saved_preview.clear()
+        if not pixmap.isNull():
+            self.saved_preview.setPixmap(pixmap.scaled(360, 90, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+            self.preview_details.setText(f"저장된 기준 이미지\n{path.name}\n원본 {pixmap.width()}×{pixmap.height()} 픽셀")
+        elif name and is_region(name):
+            self.saved_preview.setText("검색 영역은 이미지 파일이 아닙니다.")
+            self.preview_details.setText(str(self.data.get("regions", {}).get(name, "미저장")))
+        else:
+            self.saved_preview.setText("저장된 이미지 없음")
+            self.preview_details.setText("해당 항목을 캡처해 저장하세요.")
+
+    def show_saved_image(self):
+        path = self.saved_image_path()
+        pixmap = QPixmap(str(path)) if path and path.is_file() else QPixmap()
+        if pixmap.isNull():
+            QMessageBox.information(self, "저장 이미지", "저장된 이미지가 없습니다. 검색 영역 항목은 PNG를 저장하지 않습니다.")
+            return
+        dialog = QDialog(self)
+        dialog.setWindowTitle("저장된 기준 이미지 원본 · " + path.name)
+        layout = QVBoxLayout(dialog)
+        layout.addWidget(QLabel(str(path)))
+        scroll = QScrollArea()
+        image = QLabel()
+        image.setPixmap(pixmap)
+        scroll.setWidget(image)
+        layout.addWidget(scroll)
+        dialog.resize(min(1000, max(450, pixmap.width()+60)), min(700, max(250, pixmap.height()+100)))
+        dialog.exec()
+
+    def start_action(self):
+        if self.test_timer.isActive() or (self.action_worker and self.action_worker.isRunning()):
+            return
+        if not self.action_enabled.isChecked():
+            QMessageBox.information(self, "동작 테스트", "실제 키·클릭 허용을 먼저 체크하세요. 인식만 확인하려면 위의 인식 테스트를 사용하세요.")
+            return
+        if not self.parentWidget() or not getattr(self.parentWidget(), "hotkeys", None):
+            QMessageBox.warning(self, "동작 테스트", "F9 중지 단축키가 등록되어 있어야 합니다.")
+            return
+        self.action_control = RunControl()
+        self.action_worker = NavigationWorker(self.config, self.root, self.action_control, self.action_choice.currentData(), self)
+        self.test_results.clear()
+        self.action_worker.message.connect(self.test_results.appendPlainText)
+        self.action_worker.captured.connect(self.show_action_capture)
+        self.action_worker.finished.connect(self.finish_action)
+        self.restore_parent = self.parentWidget().isVisible()
+        self.showMinimized()
+        self.parentWidget().showMinimized()
+        self.action_worker.start()
+
+    def stop_action(self):
+        # May be called by the keyboard hook thread. Only touches a thread-safe event.
+        if self.action_control:
+            self.action_control.stop()
+
+    def show_action_capture(self, frame):
+        self.view = CropView(frame)
+        self.view.selected.connect(lambda r: self.status.setText(f"선택: x={r.x()}, y={r.y()}, w={r.width()}, h={r.height()}"))
+        self.scroll.setWidget(self.view)
+
+    def finish_action(self):
+        self.action_enabled.setChecked(False)
+        self.restore_test_windows()
+        self.status.setText("동작 테스트 종료. 결과를 확인한 뒤 다음 동작을 직접 선택하세요.")
+        if self.close_after_action:
+            self.reject()
 
     def capture(self):
         capture = None
@@ -253,23 +379,25 @@ class CalibrationDialog(QDialog):
 
     def schedule_test(self, whole_stage):
         name = self.name.currentData()
-        if not name or self.test_timer.isActive():
+        if not name or self.test_timer.isActive() or (self.action_worker and self.action_worker.isRunning()):
             return
         steps = capture_steps(self.config.quantity)
         stage = next(stage for key, stage, _ in steps if key == name)
         self.test_names = [key for key, group, _ in steps if group == stage] if whole_stage else [name]
         self.status.setText("3초 뒤 현재 게임 화면을 검사합니다. 게임을 보이게 하고 필요한 툴팁을 띄우세요.")
         self.restore_parent = bool(self.parentWidget() and self.parentWidget().isVisible())
-        self.hide()
+        self.showMinimized()
         if self.restore_parent:
-            self.parentWidget().hide()
+            self.parentWidget().showMinimized()
         self.test_timer.start(3000)
 
     def restore_test_windows(self):
         if self.restore_parent and self.parentWidget():
-            self.parentWidget().show()
+            self.parentWidget().showNormal()
         self.restore_parent = False
-        self.show()
+        self.showNormal()
+        self.raise_()
+        self.activateWindow()
 
     def run_recognition_test(self):
         capture = None
@@ -333,9 +461,13 @@ class CalibrationDialog(QDialog):
             self.restore_test_windows()
 
     def reject(self):
+        if self.action_worker and self.action_worker.isRunning():
+            self.close_after_action = True
+            self.stop_action()
+            return
         self.test_timer.stop()
         if self.restore_parent and self.parentWidget():
-            self.parentWidget().show()
+            self.parentWidget().showNormal()
         self.restore_parent = False
         super().reject()
 
