@@ -13,7 +13,9 @@ def purchase(session, quantity):
     frame = session.frame()
     session.require(frame, "buy_popup", "buy_target_name", "buy_target_blue",
                     f"quantity_{quantity}", f"buy_cost_{quantity * 1600}")
+    session.control.stats.begin_purchase(quantity)
     session.inputs.click(session.detector.one(frame, "buy_confirm"))
     session.wait_absent("buy_popup")
     session.expect("shop_open")
+    session.control.stats.confirm_purchase()
     session.close_ui("shop_open")

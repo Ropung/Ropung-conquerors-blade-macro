@@ -1,5 +1,7 @@
 import logging
 import time
+import json
+from datetime import datetime
 from logging.handlers import RotatingFileHandler
 
 from PySide6.QtCore import QThread, Signal, QTimer, Qt
@@ -18,28 +20,46 @@ class Worker(QThread):
     state = Signal(str)
     failed = Signal(str)
 
-    def __init__(self, config, root, control, single_cycle=True, dismantle_only=False):
+    def __init__(self, config, root, control, single_cycle=True, dismantle_only=False, max_dismantle=0):
         super().__init__()
         self.config, self.root, self.control = config, root, control
         self.single_cycle = single_cycle
         self.dismantle_only = dismantle_only
+        self.max_dismantle = max_dismantle
+        self.result_text = ""
 
     def run(self):
+        started = time.monotonic()
+        outcome = "완료"
         try:
             if self.dismantle_only:
                 run_dismantle_once(self.config, self.root, self.control, self.message.emit, lambda s: self.state.emit(s.value))
             else:
-                run(self.config, self.root, self.control, self.message.emit, lambda s: self.state.emit(s.value), single_cycle=self.single_cycle)
+                run(self.config, self.root, self.control, self.message.emit, lambda s: self.state.emit(s.value), single_cycle=self.single_cycle, max_dismantle=self.max_dismantle)
         except Stopped:
+            outcome = "사용자 중지"
             self.message.emit("사용자 중지. 자동 재개하지 않습니다.")
             self.state.emit(State.STOPPED.value)
         except Exception as error:
+            outcome = "오류 중지: " + str(error)
             logging.getLogger("macro").exception("실행 실패")
             self.message.emit(f"{type(error).__name__}: {error}")
             self.failed.emit(str(error))
             self.state.emit(State.ERROR.value)
         else:
             self.state.emit(State.IDLE.value)
+        finally:
+            elapsed = round(time.monotonic() - started, 1)
+            self.result_text = f"실행 결과 · {outcome} · {elapsed}초\n" + self.control.stats.text()
+            self.message.emit(self.result_text)
+            try:
+                folder = self.root / "logs" / "results"
+                folder.mkdir(parents=True, exist_ok=True)
+                report = {**self.control.stats.report(), "outcome": outcome, "elapsed_seconds": elapsed,
+                          "max_dismantle": self.max_dismantle, "live_input": self.config.live_input}
+                (folder / (datetime.now().strftime("%Y%m%d-%H%M%S-%f") + ".json")).write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+            except Exception as error:
+                self.message.emit("결과 파일 저장 실패: " + str(error))
 
 
 class MainWindow(QMainWindow):
@@ -92,6 +112,15 @@ class MainWindow(QMainWindow):
         self.calibrate.clicked.connect(self.open_calibration)
         row.addWidget(self.calibrate)
         layout.addLayout(row)
+        limit_row = QHBoxLayout()
+        limit_row.addWidget(QLabel("최대 분해 개수"))
+        self.max_dismantle = QSpinBox()
+        self.max_dismantle.setRange(0, 1_000_000)
+        self.max_dismantle.setSpecialValueText("제한 없음")
+        self.max_dismantle.setValue(15)
+        limit_row.addWidget(self.max_dismantle)
+        limit_row.addWidget(QLabel("도달하면 자동 중지 · 0은 제한 없음"))
+        layout.addLayout(limit_row)
         self.live = QCheckBox("실제 게임 입력 활성화 (보정 검토 필요 · 재실행 시 해제)")
         layout.addWidget(self.live)
         self.single_cycle = QCheckBox("1회 테스트 후 자동 중지 (처음에는 1개로 테스트)")
@@ -123,6 +152,10 @@ class MainWindow(QMainWindow):
         self.stop_reason.setWordWrap(True)
         self.stop_reason.setStyleSheet("color: #c62828; font-weight: bold;")
         layout.addWidget(self.stop_reason)
+        self.result_summary = QLabel("실행 결과: 아직 실행하지 않았습니다.")
+        self.result_summary.setWordWrap(True)
+        self.result_summary.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        layout.addWidget(self.result_summary)
         self.runtime_hint = QLabel("", self, Qt.WindowType.Tool | Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.WindowDoesNotAcceptFocus)
         self.runtime_hint.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         self.runtime_hint.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
@@ -218,13 +251,19 @@ class MainWindow(QMainWindow):
             return
         config = Config(**vars(self.config))
         config.live_input = self.live.isChecked()
+        limit = self.max_dismantle.value()
+        if dismantle_only and limit and config.quantity > limit:
+            QMessageBox.information(self, "분해 개수 제한", "기존 아이템 테스트 수량이 최대 분해 개수보다 큽니다. 수량 또는 제한을 조정하세요.")
+            return
         self.control = RunControl()
-        self.worker = Worker(config, self.root, self.control, self.single_cycle.isChecked(), dismantle_only=dismantle_only)
+        self.worker = Worker(config, self.root, self.control, self.single_cycle.isChecked(), dismantle_only=dismantle_only, max_dismantle=limit)
         self.worker.message.connect(self.log)
         self.worker.state.connect(self.set_state)
         self.worker.failed.connect(self.show_failure)
         self.worker.finished.connect(self.finished)
         self.quantity.setEnabled(False)
+        self.max_dismantle.setEnabled(False)
+        self.result_summary.setText("실행 결과: 작업 중")
         self.calibrate.setEnabled(False)
         self.live.setEnabled(False)
         self.single_cycle.setEnabled(False)
@@ -278,6 +317,9 @@ class MainWindow(QMainWindow):
         if self.runtime_hint.isVisible():
             self.runtime_hint.setText(self.status.text() + "\n" + (self.stop_reason.text() or self.current_step.text()))
         self.quantity.setEnabled(True)
+        self.max_dismantle.setEnabled(True)
+        if self.worker:
+            self.result_summary.setText(self.worker.result_text)
         self.calibrate.setEnabled(True)
         self.live.setEnabled(self.hotkeys is not None)
         self.live.setChecked(False)

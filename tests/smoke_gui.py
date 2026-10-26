@@ -24,6 +24,8 @@ with tempfile.TemporaryDirectory() as directory:
         assert window.quantity.value() == 15
         assert not window.live.isChecked()
         assert window.single_cycle.isChecked()
+        assert window.max_dismantle.value() == 15
+        assert "실행 결과" in window.result_summary.text()
         assert window.stop_reason.text() == ""
         window.show_failure("inventory_target_name: 인식 실패")
         assert "인벤토리 대상 이름" in window.stop_reason.text()

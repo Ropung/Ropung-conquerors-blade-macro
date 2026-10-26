@@ -1,6 +1,7 @@
 from enum import Enum
 import threading
 import time
+from core.run_stats import RunStats
 
 
 class Stopped(Exception):
@@ -30,6 +31,7 @@ def batches(quantity):
 
 class RunControl:
     def __init__(self):
+        self.stats = RunStats()
         self.revision = 0
         self.stopped = threading.Event()
         self.running = threading.Event()

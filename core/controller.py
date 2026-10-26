@@ -1,5 +1,6 @@
 import time
 import json
+from core.run_stats import next_quantity
 
 from automation.dismantle_automation import dismantle
 from automation.inventory_automation import open_inventory, register, slots, targets, slot_count
@@ -131,11 +132,24 @@ class Session:
         self.require(self.frame(), name)
 
 
-def run(config, root, control, log, change_state, single_cycle=False):
+def run(config, root, control, log, change_state, single_cycle=False, max_dismantle=0):
     config.validate()
+    if type(max_dismantle) is not int or max_dismantle < 0:
+        raise SafetyError("최대 분해 개수는 0 이상의 정수여야 합니다.")
     change_state(State.CHECKING)
     profile = Profile(root / config.profile)
     profile.validate(config.quantity)
+    first_quantity = next_quantity(config.quantity, max_dismantle, 0)
+    planned = {first_quantity}
+    if not single_cycle:
+        planned.add(config.quantity)
+        if max_dismantle and max_dismantle % config.quantity:
+            planned.add(max_dismantle % config.quantity)
+    if config.live_input:
+        for quantity in planned:
+            profile.validate(quantity)
+            if quantity not in profile.data.get("reviewed_quantities", []):
+                raise SafetyError(f"제한 수량에 필요한 {quantity}개 구매·분해 보정 검토가 필요합니다.")
     # Load all images even in read-only mode; invalid files are a hard stop.
     Detector(profile)
     window = GameWindow(config.window_title)
@@ -165,23 +179,29 @@ def run(config, root, control, log, change_state, single_cycle=False):
         targets(session, 0)
         session.close_ui("inventory_open")
         cycle = 0
+        completed = 0
         while True:
             control.checkpoint()
+            quantity = next_quantity(config.quantity, max_dismantle, completed)
+            if quantity == 0:
+                log(f"최대 분해 개수 {max_dismantle}개 도달 · 자동 중지")
+                return
             change_state(State.PURCHASING)
-            purchase(session, config.quantity)
+            purchase(session, quantity)
             open_inventory(session)
-            targets(session, config.quantity)
+            targets(session, quantity)
             slots(session, 0)
-            remaining = config.quantity
-            for amount in batches(config.quantity):
+            remaining = quantity
+            for amount in batches(quantity):
                 change_state(State.REGISTERING)
                 register(session, amount, remaining)
                 remaining -= amount
                 change_state(State.DISMANTLING)
                 dismantle(session, amount, remaining)
+                completed += amount
             session.close_ui("inventory_open")
             cycle += 1
-            log(f"반복 {cycle}회 완료 / {config.quantity}개 구매·분해")
+            log(f"반복 {cycle}회 완료 / 누적 {completed}개 분해" + (f" / 제한 {max_dismantle}개" if max_dismantle else ""))
             if single_cycle:
                 log("1회 테스트 완료. 추가 구매 없이 자동 중지합니다.")
                 return
