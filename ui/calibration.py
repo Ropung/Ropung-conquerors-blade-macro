@@ -66,7 +66,7 @@ def capture_steps(quantity):
         ("상점", "마구 상점을 클릭해 들어간 화면을 캡처하세요.", ["shop_open", "page_two"]),
         ("상점 2페이지", "2페이지로 이동한 화면을 캡처하세요.", ["page_two_active", "shop_target", "buy_button"]),
         ("구매 수량 창", f"구매 버튼을 누르고 수량을 {quantity}개로 입력한 화면을 캡처하세요. 최종 구매는 아직 누르지 마세요.",
-         list(dict.fromkeys(["buy_popup", "quantity_field", "quantity_plus", "quantity_minus", f"quantity_{quantity}", "buy_target_name", "buy_target_blue", f"buy_cost_{quantity * 1600}", "buy_confirm"]))),
+         list(dict.fromkeys(["buy_popup", "quantity_field", f"quantity_{quantity}", "buy_target_name", "buy_target_blue", f"buy_cost_{quantity * 1600}", "buy_confirm"]))),
         ("구매 수량 1개", "수량을 1개로 맞춰 비용 1,600 표시만 캡처하세요.", ["buy_cost_1600"] if quantity != 1 else []),
         ("인벤토리", "상점을 닫고 I키로 인벤토리를 연 화면을 캡처하세요.", ["inventory_open", "dismantle_icon"]),
         ("빈 분해 창", "왼쪽 네 번째 분해 아이콘을 누르고, 분해 칸이 모두 빈 화면을 캡처하세요.",

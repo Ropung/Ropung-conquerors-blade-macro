@@ -91,14 +91,15 @@ class SafetyTests(unittest.TestCase):
         mouse.keyUp.assert_not_called()
         self.assertTrue(scan.FAILSAFE)
 
-    def test_quantity_keyboard_input_is_disabled(self):
+    def test_quantity_fifteen_appends_only_five(self):
         mouse, scan = Mock(), Mock()
         with patch.dict("sys.modules", {"pyautogui": mouse, "pydirectinput": scan}):
             inputs = InputController(Mock(origin=(0, 0)), RunControl(), enabled=True)
-            with self.assertRaises(SafetyError):
-                inputs.quantity(15)
+            inputs.quantity(15)
         scan.keyDown.assert_not_called()
-        mouse.write.assert_not_called()
+        mouse.hotkey.assert_not_called()
+        mouse.press.assert_called_once_with("right")
+        mouse.write.assert_called_once_with("5", interval=.08)
     def test_stop_during_key_hold_always_releases_key(self):
         backend = Mock()
         control = RunControl()

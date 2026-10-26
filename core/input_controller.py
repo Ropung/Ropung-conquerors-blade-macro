@@ -105,4 +105,15 @@ class InputController:
         self._perform(tap)
 
     def quantity(self, number):
-        raise SafetyError("수량 키보드 입력은 사용하지 않습니다. +/− 버튼으로 설정하세요.")
+        if type(number) is not int or not 1 <= number <= 20:
+            raise SafetyError("구매 수량은 1~20이어야 합니다.")
+        if number == 1:
+            return
+        if 10 <= number <= 19:
+            # Caller verified the fresh popup still contains its default 1.
+            # Right collapses a selection to its end without Home/End shortcuts.
+            self._perform(self.backend.press, "right")
+            self._perform(self.backend.write, str(number)[1:], interval=.08)
+        else:
+            self._perform(self.backend.hotkey, "ctrl", "a")
+            self._perform(self.backend.write, str(number), interval=.08)

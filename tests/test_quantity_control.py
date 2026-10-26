@@ -6,28 +6,26 @@ from core.state_machine import SafetyError
 
 
 class QuantityControlTests(unittest.TestCase):
-    def test_one_to_fifteen_uses_fourteen_plus_clicks_and_no_keys(self):
-        session = Mock()
-        session.detector.present.return_value = True
-        session.detector.one.side_effect = lambda frame, name: name
-        set_quantity(session, 15)
-        self.assertEqual(session.inputs.click.call_count, 14)
-        self.assertEqual({c.args[0] for c in session.inputs.click.call_args_list}, {"quantity_plus"})
-        session.inputs.key.assert_not_called()
-        session.inputs.quantity.assert_not_called()
-        session.expect_all.assert_called_once_with(("quantity_15", "buy_cost_24000"), timeout=2)
-
-    def test_unknown_initial_quantity_is_reset_before_increment(self):
+    def test_fifteen_uses_text_entry_after_confirming_default_one(self):
         session = Mock()
         session.detector.present.return_value = False
-        session.detector.one.side_effect = lambda frame, name: name
         set_quantity(session, 15)
-        clicks = [c.args[0] for c in session.inputs.click.call_args_list]
-        self.assertEqual(clicks, ["quantity_minus"] * 19 + ["quantity_plus"] * 14)
+        session.require.assert_any_call(session.frame.return_value, "buy_cost_1600")
+        session.click.assert_called_once_with("quantity_field", "buy_popup")
+        session.inputs.quantity.assert_called_once_with(15)
+        session.expect_all.assert_called_once_with(("quantity_15", "buy_cost_24000"), timeout=2)
+        session.inputs.click.assert_not_called()
 
-    def test_missing_popup_prevents_any_input(self):
+    def test_already_correct_quantity_is_not_appended_again(self):
         session = Mock()
-        session.require.side_effect = SafetyError("popup missing")
+        session.detector.present.return_value = True
+        set_quantity(session, 15)
+        session.inputs.quantity.assert_not_called()
+
+    def test_unknown_initial_quantity_prevents_input(self):
+        session = Mock()
+        session.detector.present.return_value = False
+        session.require.side_effect = [None, SafetyError("not default one")]
         with self.assertRaises(SafetyError):
             set_quantity(session, 15)
-        session.inputs.click.assert_not_called()
+        session.inputs.quantity.assert_not_called()

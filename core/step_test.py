@@ -14,7 +14,7 @@ NAVIGATION_STEPS = [
     ("hover", "3. 버들잎 면갑 항목 확인", ["page_two_active", "shop_target"]),
     ("select", "4. 버들잎 면갑 선택", ["page_two_active", "shop_target", "buy_button"]),
     ("popup", "5. 구매 수량 창 열기 (구매 확정 안 함)", ["shop_open", "buy_button", "buy_popup"]),
-    ("quantity", "6. +/− 버튼으로 수량 설정 (구매 확정 안 함)", ["buy_popup", "quantity_plus", "quantity_minus", "buy_cost_1600"]),
+    ("quantity", "6. 수량 입력 (15개는 기본값 1 뒤에 5 입력)", ["buy_popup", "quantity_field", "buy_cost_1600"]),
     ("close_popup", "7. 구매 수량 창 닫기", ["buy_popup"]),
     ("close_shop", "8. 상점 닫기", ["shop_open"]),
     ("inventory", "9. I키 → 인벤토리 열기", ["inventory_open"]),

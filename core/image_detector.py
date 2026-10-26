@@ -11,7 +11,7 @@ def required_templates(quantity):
         "shop_target", "buy_button", "buy_popup",
         "buy_target_name", "buy_target_blue",
         "inventory_target_name", "inventory_target_blue",
-        "quantity_field", "quantity_plus", "quantity_minus", "buy_cost_1600", "buy_confirm", "inventory_open", "dismantle_icon",
+        "quantity_field", "buy_cost_1600", "buy_confirm", "inventory_open", "dismantle_icon",
         "dismantle_panel", "inventory_target", "slot_target", "slot_empty",
         "dismantle_button", "complete_popup", "complete_confirm",
         f"quantity_{quantity}", f"buy_cost_{quantity * 1600}",
