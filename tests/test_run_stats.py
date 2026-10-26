@@ -42,6 +42,8 @@ class RunStatsTests(unittest.TestCase):
             run(Config(quantity=15, live_input=True), Path("."), Mock(), Mock(), Mock(), max_dismantle=17)
             self.assertEqual([c.args[1] for c in mocks["purchase"].call_args_list], [15, 2])
             self.assertEqual([c.args[1] for c in mocks["dismantle"].call_args_list], [15, 2])
+            mocks["open_shop"].assert_not_called()
+            self.assertEqual(mocks["open_inventory"].call_count, 2)
 
     def test_purchase_failure_does_not_start_second_cycle(self):
         with ExitStack() as stack:

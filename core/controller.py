@@ -170,14 +170,8 @@ def run(config, root, control, log, change_state, single_cycle=False, max_disman
         window.activate()
         inputs = InputController(window, control, enabled=True)
         session = Session(config, profile, capture, inputs, control, log)
-        # First game input is F; only the resulting NPC menu must be recognized.
-        open_shop(session)
-        session.close_ui("shop_open")
-        # Abort when a target already exists. This establishes purchase provenance.
-        open_inventory(session)
-        slots(session, 0)
-        targets(session, 0)
-        session.close_ui("inventory_open")
+        # purchase() starts directly with F and opens the NPC shop menu.
+        # Verify the exact purchased quantity and empty dismantling slots below.
         cycle = 0
         completed = 0
         while True:
