@@ -129,7 +129,7 @@ class MainWindow(QMainWindow):
         buttons = QHBoxLayout()
         self.start_button = QPushButton("F6 시작 / 읽기 전용 진단")
         self.pause_button = QPushButton("F7 일시정지")
-        self.resume_button = QPushButton("F8 재개")
+        self.resume_button = QPushButton("F10 재개")
         self.stop_button = QPushButton("F9 즉시 중지")
         for button, action in [(self.start_button, self.start), (self.pause_button, self.pause),
                                (self.resume_button, self.resume), (self.stop_button, self.stop)]:
@@ -174,7 +174,7 @@ class MainWindow(QMainWindow):
         self.stop_requested.connect(self.stop)
         try:
             self.hotkeys = HotkeyManager({"f6": self.start_requested.emit, "f7": self.request_pause,
-                                          "f8": self.resume_requested.emit, "f9": self.request_stop})
+                                          "f10": self.resume_requested.emit, "f9": self.request_stop})
         except Exception as error:
             self.hotkeys = None
             self.log("단축키 등록 실패: " + str(error) + " / 실제 입력 사용 불가")

@@ -32,7 +32,8 @@ class StepTests(unittest.TestCase):
         for key, _, _ in NAVIGATION_STEPS:
             with self.subTest(key=key):
                 session = Mock()
-                execute_step(session, key, 15)
+                with patch("core.step_test.set_quantity"):
+                    execute_step(session, key, 15)
                 for entry in session.mock_calls:
                     if entry[0] == "click":
                         self.assertNotIn(entry.args[0], ("buy_confirm", "dismantle_button"))

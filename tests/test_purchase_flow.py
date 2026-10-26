@@ -9,7 +9,7 @@ class PurchaseFlowTests(unittest.TestCase):
     def test_clicks_row_purchase_button_without_item_hover(self):
         session = Mock()
         session.detector.one.side_effect = lambda frame, name: name
-        with patch("automation.shop_automation.open_shop"):
+        with patch("automation.shop_automation.open_shop"), patch("automation.shop_automation.set_quantity"):
             purchase(session, 15)
         session.hover_target.assert_not_called()
         session.require.assert_any_call(session.expect.return_value, "shop_target", "buy_button")

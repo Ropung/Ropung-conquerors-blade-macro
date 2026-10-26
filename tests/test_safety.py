@@ -91,32 +91,14 @@ class SafetyTests(unittest.TestCase):
         mouse.keyUp.assert_not_called()
         self.assertTrue(scan.FAILSAFE)
 
-    def test_quantity_replaces_selection_without_deleting_minimum(self):
+    def test_quantity_keyboard_input_is_disabled(self):
         mouse, scan = Mock(), Mock()
-        control = RunControl()
-        with patch.dict("sys.modules", {"pyautogui": mouse, "pydirectinput": scan}), patch.object(control, "delay"):
-            inputs = InputController(Mock(origin=(0, 0)), control, enabled=True)
-            inputs.quantity(15)
-        downs = [call.args[0] for call in scan.keyDown.call_args_list]
-        self.assertEqual(downs, ["home", "shift", "end", "1", "5"])
-        self.assertNotIn("backspace", downs)
-        mouse.hotkey.assert_not_called()
-        mouse.write.assert_not_called()
-
-    def test_quantity_selection_releases_shift_on_stop(self):
-        scan = Mock()
-        control = RunControl()
-        def key_down(key):
-            if key == "end":
-                control.stop()
-        scan.keyDown.side_effect = key_down
-        with patch.dict("sys.modules", {"pyautogui": Mock(), "pydirectinput": scan}):
-            inputs = InputController(Mock(origin=(0, 0)), control, enabled=True)
-            with self.assertRaises(Stopped):
+        with patch.dict("sys.modules", {"pyautogui": mouse, "pydirectinput": scan}):
+            inputs = InputController(Mock(origin=(0, 0)), RunControl(), enabled=True)
+            with self.assertRaises(SafetyError):
                 inputs.quantity(15)
-        scan.keyUp.assert_any_call("shift")
-        scan.keyUp.assert_any_call("end")
-
+        scan.keyDown.assert_not_called()
+        mouse.write.assert_not_called()
     def test_stop_during_key_hold_always_releases_key(self):
         backend = Mock()
         control = RunControl()

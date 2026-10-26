@@ -1,4 +1,5 @@
 from automation.npc_interaction import open_shop
+from automation.quantity_control import set_quantity
 
 
 def purchase(session, quantity):
@@ -9,9 +10,7 @@ def purchase(session, quantity):
     session.require(frame, "shop_target", "buy_button")
     session.inputs.click(session.detector.one(frame, "buy_button"))
     session.expect("buy_popup")
-    session.click("quantity_field", "buy_popup")
-    session.inputs.quantity(quantity)
-    session.control.delay(.25)
+    set_quantity(session, quantity)
     # All observations are repeated immediately before spending coins.
     frame = session.frame()
     session.require(frame, "buy_popup", "buy_target_name", "buy_target_blue",

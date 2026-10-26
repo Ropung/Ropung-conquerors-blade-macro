@@ -11,7 +11,7 @@ def required_templates(quantity):
         "shop_target", "buy_button", "buy_popup",
         "buy_target_name", "buy_target_blue",
         "inventory_target_name", "inventory_target_blue",
-        "quantity_field", "buy_confirm", "inventory_open", "dismantle_icon",
+        "quantity_field", "quantity_plus", "quantity_minus", "buy_cost_1600", "buy_confirm", "inventory_open", "dismantle_icon",
         "dismantle_panel", "inventory_target", "slot_target", "slot_empty",
         "dismantle_button", "complete_popup", "complete_confirm",
         f"quantity_{quantity}", f"buy_cost_{quantity * 1600}",
@@ -71,7 +71,7 @@ class Detector:
     def match_scores(self, search, template, name):
         import cv2
         import numpy as np
-        if name in ("page_two", "page_two_active", "shop_menu"):
+        if name in ("page_two", "page_two_active", "shop_menu", "quantity_plus", "quantity_minus"):
             # Page controls are translucent over the animated horse. Compare
             # only their bright arrow/digit strokes, not the moving backdrop.
             mask = (cv2.cvtColor(template, cv2.COLOR_BGR2GRAY) > 100).astype(np.uint8) * 255

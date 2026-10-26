@@ -105,24 +105,4 @@ class InputController:
         self._perform(tap)
 
     def quantity(self, number):
-        if type(number) is not int or not 1 <= number <= 20:
-            raise SafetyError("구매 수량은 1~20이어야 합니다.")
-        # Deleting this game's quantity restores its minimum of 1. Select the
-        # existing digits and replace them, using the same scan-code input as F.
-        self.key("home")
-        def select_to_end():
-            try:
-                self.key_backend.keyDown("shift")
-                self.key_backend.keyDown("end")
-                self.control.delay(.08)
-            finally:
-                failsafe = self.key_backend.FAILSAFE
-                try:
-                    self.key_backend.FAILSAFE = False
-                    self.key_backend.keyUp("end")
-                    self.key_backend.keyUp("shift")
-                finally:
-                    self.key_backend.FAILSAFE = failsafe
-        self._perform(select_to_end)
-        for digit in str(number):
-            self.key(digit)
+        raise SafetyError("수량 키보드 입력은 사용하지 않습니다. +/− 버튼으로 설정하세요.")
