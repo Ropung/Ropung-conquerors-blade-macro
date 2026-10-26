@@ -8,24 +8,22 @@ from core.state_machine import SafetyError
 
 # key, label, necessary templates
 NAVIGATION_STEPS = [
-    ("npc", "1. F키 → NPC 메뉴 열기", ["shop_menu"]),
-    ("shop", "2. 마구 상점 클릭", ["shop_menu", "shop_open"]),
-    ("page", "3. 상점 2페이지로 이동", ["shop_open", "page_two", "page_two_active"]),
-    ("hover", "4. 버들잎 면갑에 마우스 올려 확인", ["page_two_active", "shop_target", "shop_target_identity"]),
-    ("select", "5. 버들잎 면갑 선택", ["page_two_active", "shop_target", "shop_target_identity", "buy_button"]),
-    ("popup", "6. 구매 수량 창 열기 (구매 확정 안 함)", ["shop_open", "buy_button", "buy_popup"]),
-    ("quantity", "7. 설정 수량 입력 (구매 확정 안 함)", ["buy_popup", "quantity_field"]),
-    ("close_popup", "8. 구매 수량 창 닫기", ["buy_popup"]),
-    ("close_shop", "9. 상점 닫기", ["shop_open"]),
-    ("inventory", "10. I키 → 인벤토리 열기", ["inventory_open"]),
-    ("panel", "11. 분해 창 열기 (분해 실행 안 함)", ["inventory_open", "dismantle_icon", "dismantle_panel"]),
+    ("npc", "1. F키 → 마구 상점 버튼 클릭", ["shop_menu", "shop_open"]),
+    ("page", "2. 상점 2페이지로 이동", ["shop_open", "page_two", "page_two_active"]),
+    ("hover", "3. 버들잎 면갑에 마우스 올려 확인", ["page_two_active", "shop_target", "shop_target_identity"]),
+    ("select", "4. 버들잎 면갑 선택", ["page_two_active", "shop_target", "shop_target_identity", "buy_button"]),
+    ("popup", "5. 구매 수량 창 열기 (구매 확정 안 함)", ["shop_open", "buy_button", "buy_popup"]),
+    ("quantity", "6. 설정 수량 입력 (구매 확정 안 함)", ["buy_popup", "quantity_field"]),
+    ("close_popup", "7. 구매 수량 창 닫기", ["buy_popup"]),
+    ("close_shop", "8. 상점 닫기", ["shop_open"]),
+    ("inventory", "9. I키 → 인벤토리 열기", ["inventory_open"]),
+    ("panel", "10. 분해 창 열기 (분해 실행 안 함)", ["inventory_open", "dismantle_icon", "dismantle_panel"]),
 ]
 
 
 def execute_step(session, key, quantity):
     if key == "npc":
         session.key("f", "shop_menu")
-    elif key == "shop":
         session.click("shop_menu", "shop_open")
     elif key == "page":
         session.require(session.frame(), "shop_open")

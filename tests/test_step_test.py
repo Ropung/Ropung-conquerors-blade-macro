@@ -9,10 +9,17 @@ from core.step_test import NAVIGATION_STEPS, execute_step, run_step_test
 
 
 class StepTests(unittest.TestCase):
-    def test_f_test_is_one_key_and_one_expected_screen(self):
+    def test_first_step_opens_npc_then_clicks_shop(self):
         session = Mock()
         execute_step(session, "npc", 15)
-        self.assertEqual(session.mock_calls, [call.key("f", "shop_menu")])
+        self.assertEqual(session.mock_calls, [call.key("f", "shop_menu"), call.click("shop_menu", "shop_open")])
+
+    def test_missing_npc_menu_prevents_shop_click(self):
+        session = Mock()
+        session.key.side_effect = SafetyError("menu missing")
+        with self.assertRaises(SafetyError):
+            execute_step(session, "npc", 15)
+        session.click.assert_not_called()
 
     def test_item_select_verifies_identity_before_click(self):
         session = Mock()
