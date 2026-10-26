@@ -115,7 +115,7 @@ class Session:
                 frame = self.frame()
                 if self.detector.present(frame, after):
                     return
-                self.inputs.click(self.detector.one(frame, name))
+                self.inputs.click_ui(self.detector.one(frame, name))
                 try:
                     self.expect(after, timeout=2)
                     return

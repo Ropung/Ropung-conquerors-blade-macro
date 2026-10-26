@@ -184,6 +184,27 @@ class SafetyTests(unittest.TestCase):
                 inputs.click((100, 100), button="right")
         backend.mouseUp.assert_called_once_with(button="right")
 
+    def test_menu_click_uses_windows_backend_at_verified_position(self):
+        mouse, direct = Mock(), Mock()
+        mouse.position.return_value = (2015, 1135)
+        control = RunControl()
+        with patch.dict("sys.modules", {"pyautogui": mouse, "pydirectinput": direct}), patch.object(control, "delay"):
+            inputs = InputController(Mock(origin=(0, 0)), control, enabled=True)
+            inputs.click_ui((2015, 1135))
+        mouse.mouseDown.assert_called_once_with(button="left")
+        mouse.mouseUp.assert_called_once_with(button="left")
+        direct.mouseDown.assert_not_called()
+
+    def test_menu_cursor_mismatch_prevents_click(self):
+        mouse = Mock()
+        mouse.position.return_value = (1900, 1000)
+        control = RunControl()
+        with patch.dict("sys.modules", {"pyautogui": mouse, "pydirectinput": Mock()}), patch.object(control, "delay"):
+            inputs = InputController(Mock(origin=(0, 0)), control, enabled=True)
+            with self.assertRaises(SafetyError):
+                inputs.click_ui((2015, 1135))
+        mouse.mouseDown.assert_not_called()
+
     def test_pause_invalidates_previously_recognized_point(self):
         backend = Mock()
         control = RunControl()

@@ -73,6 +73,32 @@ class InputController:
                     self.key_backend.FAILSAFE = failsafe
         self._perform(tap)
 
+    def click_ui(self, point):
+        """NPC menu clicks use Windows cursor placement and mouse events."""
+        x, y = point
+        if not 0 <= x < 2560 or not 0 <= y < 1440:
+            raise SafetyError("게임 영역 밖 입력 거부")
+        left, top = self.window.origin
+        target = (left + x, top + y)
+        self._perform(self.backend.moveTo, *target, duration=.12)
+        self.control.delay(.15)
+        def tap():
+            actual = self.backend.position()
+            if abs(actual[0] - target[0]) > 3 or abs(actual[1] - target[1]) > 3:
+                raise SafetyError("메뉴 클릭 전 커서가 이동했습니다. 마우스를 움직이지 말고 다시 시작하세요.")
+            logging.getLogger("macro").info("메뉴 Windows 클릭: 목표 %s / 실제 %s", target, actual)
+            try:
+                self.backend.mouseDown(button="left")
+                self.control.delay(.18)
+            finally:
+                failsafe = self.backend.FAILSAFE
+                try:
+                    self.backend.FAILSAFE = False
+                    self.backend.mouseUp(button="left")
+                finally:
+                    self.backend.FAILSAFE = failsafe
+        self._perform(tap)
+
     def quantity(self, number):
         if type(number) is not int or not 1 <= number <= 20:
             raise SafetyError("구매 수량은 1~20이어야 합니다.")
