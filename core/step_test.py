@@ -73,11 +73,14 @@ def run_step_test(config, root, control, key, log):
     window = GameWindow(config.window_title)
     # User activates the game; do not steal focus from another app.
     window.check()
+    log("게임 창 활성화·해상도 확인 완료")
     capture = ScreenCapture(window)
     try:
         inputs = InputController(window, control, enabled=True)
         session = Session(config, profile, capture, inputs, control, log)
+        log("실행 시작: " + definition[1])
         execute_step(session, key, config.quantity)
+        log("동작 및 결과 화면 확인 완료")
         return session.frame()
     finally:
         capture.close()

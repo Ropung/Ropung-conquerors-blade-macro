@@ -1,4 +1,5 @@
 import json
+import logging
 from pathlib import Path
 
 import cv2
@@ -334,16 +335,46 @@ class CalibrationDialog(QDialog):
         if not self.parentWidget() or not getattr(self.parentWidget(), "hotkeys", None):
             QMessageBox.warning(self, "동작 테스트", "F9 중지 단축키가 등록되어 있어야 합니다.")
             return
+        key = self.action_choice.currentData()
+        definition = next(item for item in NAVIGATION_STEPS if item[0] == key)
+        required = list(definition[2])
+        if key == "quantity":
+            required.append(f"quantity_{self.config.quantity}")
+        try:
+            profile = Profile(self.path)
+            missing = [name for name in required if name not in profile.templates]
+            if missing:
+                description = "\n".join("• " + korean_label(name) for name in missing)
+                message = "아직 실행하지 않았습니다. 아래 이미지를 먼저 저장하세요:\n\n" + description
+                self.record_action_message(message)
+                self.status.setText("동작 실행 전 중지 · 필요한 이미지 미저장")
+                if self.kind.currentIndex() != 0:
+                    self.kind.setCurrentIndex(0)
+                index = self.name.findData(missing[0])
+                if index >= 0:
+                    self.name.setCurrentIndex(index)
+                QMessageBox.information(self, "먼저 저장할 이미지", message)
+                return
+            # Validate only the files this action needs, before minimizing windows.
+            Detector(profile, names=required)
+        except Exception as error:
+            self.record_action_message("동작 실행 전 중지: " + str(error))
+            QMessageBox.warning(self, "동작 준비 실패", str(error))
+            return
         self.action_control = RunControl()
-        self.action_worker = NavigationWorker(self.config, self.root, self.action_control, self.action_choice.currentData(), self)
+        self.action_worker = NavigationWorker(self.config, self.root, self.action_control, key, self)
         self.test_results.clear()
-        self.action_worker.message.connect(self.test_results.appendPlainText)
+        self.action_worker.message.connect(self.record_action_message)
         self.action_worker.captured.connect(self.show_action_capture)
         self.action_worker.finished.connect(self.finish_action)
         self.restore_parent = self.parentWidget().isVisible()
         self.showMinimized()
         self.parentWidget().showMinimized()
         self.action_worker.start()
+
+    def record_action_message(self, message):
+        logging.getLogger("macro").info("동작 테스트: %s", message)
+        self.test_results.appendPlainText(message)
 
     def stop_action(self):
         # May be called by the keyboard hook thread. Only touches a thread-safe event.
