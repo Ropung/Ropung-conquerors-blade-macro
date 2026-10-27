@@ -59,8 +59,8 @@ class Profile:
             if not valid_rect(spec.get("roi"), self.resolution):
                 raise SafetyError("잘못된 템플릿 ROI: " + name)
             threshold = spec.get("threshold", 0.97)
-            if not isinstance(threshold, (int, float)) or not .90 <= threshold <= 1:
-                raise SafetyError("템플릿 임계값 범위: 0.90~1.00")
+            if isinstance(threshold, bool) or not isinstance(threshold, (int, float)) or not .50 <= threshold <= 1:
+                raise SafetyError("템플릿 임계값 범위: 0.50~1.00")
             file = (self.path.parent / spec["file"]).resolve()
             if not file.is_relative_to(self.path.parent.resolve()) or not file.is_file():
                 raise SafetyError("템플릿 파일 누락/경로 오류: " + name)
@@ -96,8 +96,8 @@ class Detector:
             if not valid_rect(spec.get("roi"), profile.resolution):
                 raise SafetyError("잘못된 템플릿 검색 영역: " + name)
             threshold = spec.get("threshold", .97)
-            if not isinstance(threshold, (int, float)) or not .90 <= threshold <= 1:
-                raise SafetyError("템플릿 임계값 범위: 0.90~1.00")
+            if isinstance(threshold, bool) or not isinstance(threshold, (int, float)) or not .50 <= threshold <= 1:
+                raise SafetyError("템플릿 임계값 범위: 0.50~1.00")
             path = profile.path.parent / spec["file"]
             if not path.resolve().is_relative_to(profile.path.parent.resolve()):
                 raise SafetyError("잘못된 템플릿 경로: " + name)

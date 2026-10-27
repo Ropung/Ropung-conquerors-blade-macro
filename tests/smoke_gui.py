@@ -7,10 +7,11 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from PySide6.QtWidgets import QApplication
+from PySide6.QtCore import QRect
 from ui.main_window import MainWindow
 from ui.calibration import CalibrationDialog, CropView, capture_steps
 from core.config import Config, write_json
-from core.image_detector import required_templates
+from core.image_detector import required_templates, Profile, Detector
 import json
 import cv2
 import numpy as np
@@ -89,6 +90,42 @@ with tempfile.TemporaryDirectory() as directory:
         assert "[찾음]" in dialog.test_results.toPlainText()
         assert dialog.view.overlays
         dialog.reject()
+        wizard = CalibrationDialog(Config(), Path(directory) / 'wizard', window)
+        assert wizard.tabs.count() == 4
+        wizard.name.setCurrentIndex(wizard.name.findData('buy_button'))
+        wizard.stage_frames[wizard.current_stage()] = frame
+        wizard.install_capture(frame, wizard.current_stage())
+        wizard.show_help()
+        wizard.view.rect = QRect(30, 20, 12, 12)
+        wizard.save_crop()
+        assert wizard.pending_crop == QRect(30, 20, 12, 12)
+        assert wizard.view.click_point is not None
+        assert not wizard.path.exists()  # Nothing saved until search area is confirmed.
+        wizard.view.rect = QRect(0, 0, 10, 10)
+        with patch('ui.calibration.QMessageBox.warning') as warning:
+            wizard.save_crop()
+            warning.assert_called_once()
+        assert not wizard.path.exists()
+        wizard.view.rect = QRect(0, 0, 100, 100)
+        wizard.save_crop()
+        stored = json.loads(wizard.path.read_text(encoding='utf-8'))
+        assert stored['templates']['buy_button']['roi'] == [0, 0, 100, 100]
+        assert stored['templates']['buy_button']['crop'] == [30, 20, 12, 12]
+        assert wizard.view is None  # Next stage requires its own game screen.
+        wizard.name.setCurrentIndex(wizard.name.findData('buy_button'))
+        assert wizard.view is not None  # Previous capture is reused.
+        wizard.data['reviewed_quantities'] = [15]
+        wizard.threshold.setValue(70)
+        wizard.save_threshold()
+        stored = json.loads(wizard.path.read_text(encoding='utf-8'))
+        assert stored['templates']['buy_button']['threshold'] == .70
+        assert stored['reviewed_quantities'] == []
+        detector = Detector(Profile(wizard.path), names=['buy_button'])
+        assert detector.diagnose(frame, 'buy_button')['threshold'] == .70
+        wizard.name.setCurrentIndex(wizard.name.findData('shop_target'))
+        assert wizard.view.frame is frame  # Same screen, no recapture.
+        assert wizard.threshold.value() == 90  # Per-item, not global.
+        wizard.reject()
         window.close()
         for handler in window.logger.handlers[:]:
             handler.close()

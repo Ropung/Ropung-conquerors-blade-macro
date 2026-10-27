@@ -6,7 +6,8 @@ import cv2
 from PySide6.QtCore import Qt, QRect, Signal, QTimer, QThread
 from PySide6.QtGui import QImage, QPixmap, QPainter, QPen
 from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-                               QComboBox, QMessageBox, QScrollArea, QPlainTextEdit, QCheckBox)
+                               QComboBox, QMessageBox, QScrollArea, QPlainTextEdit, QCheckBox,
+                               QWidget, QTabWidget, QDoubleSpinBox)
 
 from core.config import write_json
 from core.image_detector import Detector, Profile, required_templates, valid_rect
@@ -60,6 +61,20 @@ def is_region(name):
     return name == "inventory" or (name.startswith("slot_") and name[5:].isdigit())
 
 
+CLICK_TARGETS = {"shop_menu", "page_two", "shop_target", "buy_button", "buy_confirm",
+                 "dismantle_icon", "inventory_target", "dismantle_button", "complete_confirm"}
+
+
+def target_role(name):
+    if is_region(name):
+        return "검색 영역 · 클릭 안 함"
+    if name == "quantity_field":
+        return "입력 대상 · 수량 입력칸"
+    if name in CLICK_TARGETS:
+        return "클릭 대상"
+    return "확인 이미지 · 클릭 안 함"
+
+
 def capture_steps(quantity):
     groups = [
         ("NPC 메뉴", "게임에서 F키를 누른 뒤 NPC 메뉴를 캡처하세요.", ["shop_menu"]),
@@ -90,6 +105,8 @@ class CropView(QLabel):
         self.start = None
         self.rect = QRect()
         self.overlays = []
+        self.selection_color = Qt.GlobalColor.green
+        self.click_point = None
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         image = QImage(rgb.data, frame.shape[1], frame.shape[0], rgb.strides[0], QImage.Format.Format_RGB888).copy()
         self.setPixmap(QPixmap.fromImage(image))
@@ -117,12 +134,16 @@ class CropView(QLabel):
     def paintEvent(self, event):
         super().paintEvent(event)
         painter = QPainter(self)
-        painter.setPen(QPen(Qt.GlobalColor.red, 2))
+        painter.setPen(QPen(self.selection_color, 2))
         painter.drawRect(self.rect)
         for rect, label, color in self.overlays:
             painter.setPen(QPen(color, 3))
             painter.drawRect(rect)
             painter.drawText(rect.x(), max(15, rect.y() - 4), label)
+        if self.click_point is not None:
+            painter.setPen(QPen(Qt.GlobalColor.green, 3))
+            painter.drawEllipse(self.click_point, 6, 6)
+            painter.drawText(self.click_point, "  클릭 위치")
 
 
 class NavigationWorker(QThread):
@@ -152,6 +173,9 @@ class CalibrationDialog(QDialog):
         self.data = (json.loads(self.path.read_text(encoding="utf-8")) if self.path.exists()
                      else {"resolution": list(config.resolution), "templates": {}, "regions": {}, "reviewed_quantities": []})
         self.view = None
+        self.pending_crop = None
+        self.capture_stage = None
+        self.stage_frames = {}
         self.test_timer = QTimer(self)
         self.test_timer.setSingleShot(True)
         self.test_timer.timeout.connect(self.run_recognition_test)
@@ -166,10 +190,18 @@ class CalibrationDialog(QDialog):
         self.setWindowTitle(f"{config.width}×{config.height} 게임 화면 보정 (읽기 전용 캡처)")
         self.resize(1200, 850)
         layout = QVBoxLayout(self)
-        info = QLabel("게임 UI를 수동으로 열고 [캡처] → 영역 드래그 → [저장]. 모든 좌표는 원본 픽셀입니다.\n"
-                      "버튼은 글자와 테두리를 포함해 드래그하세요. 이름·등급은 상점/구매창/인벤토리별로 저장합니다. 수량·비용은 입력칸 전체를 선택하세요.")
+        info = QLabel("① 같은 게임 화면은 한 번만 캡처 → 대상 자르기 → 검색 범위 확인·저장\n"
+                      "② 인식 위치와 유사도 확인 → ③ 필요한 동작만 테스트 → ④ 최종 검토")
         info.setWordWrap(True)
         layout.addWidget(info)
+        self.tabs = QTabWidget()
+        layout.addWidget(self.tabs)
+        panels = []
+        for title in ("① 캡처·보정", "② 인식 확인", "③ 동작 테스트", "④ 최종 검토"):
+            page = QWidget()
+            panels.append(QVBoxLayout(page))
+            self.tabs.addTab(page, title)
+        setup, recognition, actions_panel, review_panel = panels
         row = QHBoxLayout()
         self.kind = QComboBox()
         self.kind.addItems(["순서대로 전체 (처음부터 보정)", "찾을 이미지만", "검색 영역만"])
@@ -178,11 +210,14 @@ class CalibrationDialog(QDialog):
         row.addWidget(self.name, 1)
         capture = QPushButton("게임 캡처 (창 숨김 · 3초 후)")
         capture.clicked.connect(self.capture)
-        row.addWidget(capture)
-        save = QPushButton("선택 영역 저장")
-        save.clicked.connect(self.save_crop)
-        row.addWidget(save)
-        layout.addLayout(row)
+        setup.addWidget(capture)
+        self.save_button = QPushButton("① 대상 선택 완료 → 검색 범위")
+        self.save_button.clicked.connect(self.save_crop)
+        setup.addWidget(self.save_button)
+        restart = QPushButton("대상부터 다시 선택")
+        restart.clicked.connect(self.show_help)
+        setup.addWidget(restart)
+        layout.insertLayout(1, row)
         navigation = QHBoxLayout()
         previous = QPushButton("이전 항목")
         previous.clicked.connect(lambda: self.move_item(-1))
@@ -190,7 +225,7 @@ class CalibrationDialog(QDialog):
         following.clicked.connect(lambda: self.move_item(1))
         navigation.addWidget(previous)
         navigation.addWidget(following)
-        layout.addLayout(navigation)
+        layout.insertLayout(2, navigation)
         tests = QHBoxLayout()
         selected_test = QPushButton("선택 항목 인식 테스트 (3초 후)")
         selected_test.clicked.connect(lambda: self.schedule_test(False))
@@ -198,13 +233,30 @@ class CalibrationDialog(QDialog):
         stage_test.clicked.connect(lambda: self.schedule_test(True))
         tests.addWidget(selected_test)
         tests.addWidget(stage_test)
-        layout.addLayout(tests)
+        recognition.addWidget(QLabel("저장한 이미지가 실제 화면에서 어디에 잡히는지 확인합니다. 게임 입력은 하지 않습니다."))
+        recognition.addLayout(tests)
         self.stage_text = QLabel()
         self.stage_text.setWordWrap(True)
-        layout.addWidget(self.stage_text)
+        setup.addWidget(self.stage_text)
         self.help_text = QLabel()
         self.help_text.setWordWrap(True)
-        layout.addWidget(self.help_text)
+        setup.addWidget(self.help_text)
+        threshold_row = QHBoxLayout()
+        threshold_row.addWidget(QLabel("현재 이미지의 최소 유사도"))
+        self.threshold = QDoubleSpinBox()
+        self.threshold.setRange(50, 100)
+        self.threshold.setDecimals(1)
+        self.threshold.setSingleStep(1)
+        self.threshold.setSuffix(" %")
+        self.threshold.setValue(90)
+        threshold_row.addWidget(self.threshold)
+        self.threshold_save = QPushButton("이 항목에 기준 적용")
+        self.threshold_save.clicked.connect(self.save_threshold)
+        threshold_row.addWidget(self.threshold_save)
+        recognition.addLayout(threshold_row)
+        recognition.addWidget(QLabel("기본 90% · 낮출수록 다른 버튼도 잡힐 수 있습니다. 잘못된 화면에서도 인식되는지 확인하세요."))
+        setup.addWidget(QLabel("초록: 클릭 대상 / 파랑: 확인 이미지 / 노랑: 검색 범위 (클릭 안 함)"))
+        recognition.addWidget(QLabel("유사도 기준은 항목별 저장입니다. 새 이미지의 기준은 기본 90%, 변경은 이 탭에서 적용하세요."))
         preview_row = QHBoxLayout()
         self.saved_preview = QLabel("저장된 기준 이미지: 항목을 선택하세요.")
         self.saved_preview.setMinimumHeight(64)
@@ -217,7 +269,8 @@ class CalibrationDialog(QDialog):
         preview_row.addWidget(enlarge)
         layout.addLayout(preview_row)
         self.action_enabled = QCheckBox("동작 테스트에서 실제 키·클릭 허용 (구매 확정·분해 실행 제외)")
-        layout.addWidget(self.action_enabled)
+        actions_panel.addWidget(QLabel("먼저 ②에서 인식 결과를 확인하세요. 이 탭은 실제 키·마우스를 1회 조작합니다."))
+        actions_panel.addWidget(self.action_enabled)
         actions = QHBoxLayout()
         self.action_choice = QComboBox()
         for key, label, _ in NAVIGATION_STEPS:
@@ -226,7 +279,7 @@ class CalibrationDialog(QDialog):
         action_button = QPushButton("선택 동작 1회 실행 (3초 후 · F9 중지)")
         action_button.clicked.connect(self.start_action)
         actions.addWidget(action_button)
-        layout.addLayout(actions)
+        actions_panel.addLayout(actions)
         self.name.currentIndexChanged.connect(self.show_help)
         self.status = QLabel("캡처 대기")
         layout.addWidget(self.status)
@@ -239,9 +292,18 @@ class CalibrationDialog(QDialog):
         layout.addWidget(self.test_results)
         review = QPushButton("현재 수량의 템플릿/비용/영역을 수동 검토 완료로 표시")
         review.clicked.connect(self.review)
-        layout.addWidget(review)
+        review_panel.addWidget(QLabel("이미지, 검색 범위, 비용, 수량을 확인한 뒤 검토 완료를 표시하세요. 변경 시 검토 표시는 해제됩니다."))
+        review_panel.addWidget(review)
         self.kind.currentIndexChanged.connect(self.fill_names)
         self.fill_names()
+        self.tabs.currentChanged.connect(self.change_tab)
+        self.change_tab(0)
+
+    def change_tab(self, index):
+        self.test_results.setVisible(index in (1, 2))
+        self.scroll.setVisible(index != 3)
+        if index == 0:
+            self.show_help()
 
     def fill_names(self):
         self.name.clear()
@@ -250,7 +312,7 @@ class CalibrationDialog(QDialog):
                 continue
             if self.kind.currentIndex() == 2 and not is_region(name):
                 continue
-            self.name.addItem(f"{number:02d}. [{stage}] {korean_label(name)}", name)
+            self.name.addItem(f"{number:02d}. [{stage}] [{target_role(name)}] {korean_label(name)}", name)
         # Continue from the first unsaved item without changing existing crops.
         for index in range(self.name.count()):
             name = self.name.itemData(index)
@@ -271,12 +333,37 @@ class CalibrationDialog(QDialog):
             self.preview_details.clear()
             return
         _, stage, instructions = next(step for step in capture_steps(self.config.quantity) if step[0] == name)
-        self.stage_text.setText(f"현재 단계: {stage}\n{instructions}")
+        self.pending_crop = None
+        self.stage_text.setText(f"현재 화면: {stage}\n{instructions}")
+        self.save_button.setText("검색 영역 저장 → 다음 항목" if is_region(name) else "① 대상 선택 완료 → 검색 범위")
+        self.threshold.setEnabled(not is_region(name))
+        self.threshold_save.setEnabled(not is_region(name))
+        self.threshold.setValue(self.data.get("templates", {}).get(name, {}).get("threshold", .90) * 100)
+        if self.capture_stage != stage:
+            self.capture_stage = None
+            if stage in self.stage_frames:
+                self.install_capture(self.stage_frames[stage], stage)
+            else:
+                self.view = None
+                widget = self.scroll.takeWidget()
+                if widget:
+                    widget.deleteLater()
+        if self.capture_stage == stage:
+            self.stage_text.setText(f"현재 화면: {stage} · 캡처 재사용 중 (화면이 바뀌었다면 다시 캡처)\n{instructions}")
+        else:
+            self.stage_text.setText(f"현재 화면: {stage} · 새 캡처 필요\n{instructions}")
         if self.view is not None:
             self.view.rect = QRect()
+            self.view.overlays = []
+            self.view.click_point = None
+            self.view.selection_color = Qt.GlobalColor.yellow if is_region(name) else Qt.GlobalColor.green if name in CLICK_TARGETS else Qt.GlobalColor.cyan
             self.view.update()
         if name == "shop_target":
             hint = "버들잎 면갑의 아이콘·이름·파란 등급이 함께 보이는 상점 항목을 선택하세요. 별도 툴팁 캡처는 필요 없습니다."
+        elif name == "buy_button":
+            hint = "파란 버들잎 면갑과 같은 줄의 구매 버튼 하나만 글자·테두리까지 감싸세요. 다른 구매 버튼과 배경은 제외하고 마우스는 버튼에서 떼세요."
+        elif name == "quantity_field":
+            hint = "숫자를 입력하는 칸 전체를 테두리까지 선택하세요. 수량 입력 시 이 칸의 오른쪽 부분을 클릭합니다."
         elif is_region(name):
             hint = "아이템을 검사할 영역 전체를 드래그하세요. 분해 칸은 한 칸씩 따로 지정합니다."
         elif name in ("buy_button", "buy_confirm", "dismantle_button", "complete_confirm", "page_two", "shop_menu", "dismantle_icon"):
@@ -286,7 +373,7 @@ class CalibrationDialog(QDialog):
         else:
             hint = "해당 글자·아이콘이 선명하게 들어가도록 드래그하세요. 화면이 바뀌면 게임 캡처를 다시 누르세요."
         saved = name in self.data["regions" if is_region(name) else "templates"]
-        self.help_text.setText(f"{'저장됨' if saved else '미저장'} · {hint}")
+        self.help_text.setText(f"[{target_role(name)}] {'저장됨' if saved else '미저장'} · {hint}")
         self.update_saved_preview()
 
     def saved_image_path(self):
@@ -304,7 +391,8 @@ class CalibrationDialog(QDialog):
         self.saved_preview.clear()
         if not pixmap.isNull():
             self.saved_preview.setPixmap(pixmap.scaled(360, 90, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
-            self.preview_details.setText(f"저장된 기준 이미지\n{path.name}\n원본 {pixmap.width()}×{pixmap.height()} 픽셀")
+            spec = self.data["templates"][name]
+            self.preview_details.setText(f"{target_role(name)} · {path.name}\n원본 {pixmap.width()}×{pixmap.height()} 픽셀\n검색 범위 {spec['roi']} · 기준 {spec.get('threshold', .97) * 100:g}%")
         elif name and is_region(name):
             self.saved_preview.setText("검색 영역은 이미지 파일이 아닙니다.")
             self.preview_details.setText(str(self.data.get("regions", {}).get(name, "미저장")))
@@ -357,6 +445,7 @@ class CalibrationDialog(QDialog):
                 index = self.name.findData(missing[0])
                 if index >= 0:
                     self.name.setCurrentIndex(index)
+                self.tabs.setCurrentIndex(0)
                 QMessageBox.information(self, "먼저 저장할 이미지", message)
                 return
             # Validate only the files this action needs, before minimizing windows.
@@ -386,6 +475,8 @@ class CalibrationDialog(QDialog):
             self.action_control.stop()
 
     def show_action_capture(self, frame):
+        self.capture_stage = None
+        self.pending_crop = None
         self.view = CropView(frame)
         self.view.selected.connect(lambda r: self.status.setText(f"선택: x={r.x()}, y={r.y()}, w={r.width()}, h={r.height()}"))
         self.scroll.setWidget(self.view)
@@ -396,6 +487,35 @@ class CalibrationDialog(QDialog):
         self.status.setText("동작 테스트 종료. 결과를 확인한 뒤 다음 동작을 직접 선택하세요.")
         if self.close_after_action:
             self.reject()
+
+    def current_stage(self):
+        return next((stage for name, stage, _ in capture_steps(self.config.quantity)
+                     if name == self.name.currentData()), None)
+
+    def install_capture(self, frame, stage):
+        self.capture_stage = stage
+        self.pending_crop = None
+        self.view = CropView(frame)
+        self.view.selected.connect(self.selection_changed)
+        self.scroll.setWidget(self.view)
+
+    def selection_changed(self, rect):
+        self.status.setText(f"선택: x={rect.x()}, y={rect.y()}, w={rect.width()}, h={rect.height()}")
+        if self.pending_crop is None and self.name.currentData() in CLICK_TARGETS:
+            self.view.click_point = rect.center()
+            self.view.update()
+
+    def save_threshold(self):
+        name = self.name.currentData()
+        spec = self.data.get("templates", {}).get(name)
+        if not spec:
+            QMessageBox.information(self, "먼저 보정", "① 캡처·보정에서 대상 이미지와 검색 범위를 먼저 저장하세요.")
+            return
+        spec["threshold"] = self.threshold.value() / 100
+        self.data["reviewed_quantities"] = []
+        write_json(self.path, self.data)
+        self.update_saved_preview()
+        self.status.setText(f"{korean_label(name)} 기준 {self.threshold.value():g}% 저장. ②에서 인식을 다시 확인하세요.")
 
     def capture(self):
         if self.test_timer.isActive() or self.capture_timer.isActive() or (self.action_worker and self.action_worker.isRunning()):
@@ -411,10 +531,11 @@ class CalibrationDialog(QDialog):
         try:
             capture = ScreenCapture(GameWindow(self.config.window_title, self.config.resolution))
             frame = capture.capture(foreground=False)
-            self.view = CropView(frame)
-            self.view.selected.connect(lambda r: self.status.setText(f"선택: x={r.x()}, y={r.y()}, w={r.width()}, h={r.height()}"))
-            self.scroll.setWidget(self.view)
-            self.status.setText("캡처 완료. 원본 화면을 스크롤하여 영역을 선택하세요.")
+            stage = self.current_stage()
+            self.stage_frames[stage] = frame
+            self.install_capture(frame, stage)
+            self.show_help()
+            self.status.setText("캡처 완료. 같은 화면의 항목은 재촬영 없이 계속 지정하세요.")
         except Exception as error:
             QMessageBox.warning(self, "캡처 실패", str(error))
         finally:
@@ -488,6 +609,8 @@ class CalibrationDialog(QDialog):
                             overlays.append((QRect(*result["best"]), title + " (기준 미달)", Qt.GlobalColor.darkYellow))
                     except Exception as error:
                         reports.append(f"[검사 오류] {title}: {error}")
+            self.capture_stage = None
+            self.pending_crop = None
             self.view = CropView(frame)
             self.view.overlays = overlays
             self.view.selected.connect(lambda r: self.status.setText(f"선택: x={r.x()}, y={r.y()}, w={r.width()}, h={r.height()}"))
@@ -518,38 +641,60 @@ class CalibrationDialog(QDialog):
         super().reject()
 
     def save_crop(self):
-        if self.view is None or min(self.view.rect.width(), self.view.rect.height()) < 5:
-            QMessageBox.warning(self, "영역 필요", "먼저 5×5 이상 영역을 선택하세요.")
-            return
-        rect = self.view.rect
-        roi = [rect.x(), rect.y(), rect.width(), rect.height()]
         name = self.name.currentData()
+        if self.view is None or self.capture_stage != self.current_stage():
+            QMessageBox.information(self, "캡처 필요", "현재 단계의 게임 화면을 먼저 캡처하세요.")
+            return
+        if min(self.view.rect.width(), self.view.rect.height()) < 5:
+            QMessageBox.warning(self, "선택 필요", "화면에서 5×5 픽셀 이상의 대상을 드래그하세요.")
+            return
+        rect = QRect(self.view.rect)
+        if not is_region(name) and self.pending_crop is None:
+            self.pending_crop = rect
+            search = rect.adjusted(-12, -12, 12, 12).intersected(self.view.rect_for_frame())
+            if name.startswith("inventory_target_"):
+                search = self.view.rect_for_frame()
+            self.view.overlays = [(rect, target_role(name), Qt.GlobalColor.green if name in CLICK_TARGETS else Qt.GlobalColor.cyan)]
+            self.view.rect = search
+            self.view.selection_color = Qt.GlobalColor.yellow
+            self.view.click_point = rect.center() if name in CLICK_TARGETS else None
+            self.view.update()
+            self.save_button.setText("② 검색 범위 확인·저장 → 다음 항목")
+            hint = "노란 사각형 안에서만 위 이미지를 찾습니다. 대상을 포함하되 같은 버튼이 여러 개 들어가지 않게 드래그하세요. 기본 범위를 그대로 저장해도 됩니다."
+            if name in ("inventory_target", "slot_empty", "slot_target"):
+                hint += " 이 이미지는 자동 실행 시 별도로 지정한 인벤토리/분해 칸 검색 영역에서 검사합니다."
+            self.help_text.setText("[검색 범위 · 클릭 안 함] " + hint)
+            self.status.setText("대상 선택 완료. 같은 캡처에서 검색 범위를 확인하세요. 아직 파일은 저장하지 않았습니다.")
+            return
+        roi = [rect.x(), rect.y(), rect.width(), rect.height()]
         if not is_region(name):
-            x, y, w, h = roi
+            target = self.pending_crop
+            if not rect.contains(target):
+                QMessageBox.warning(self, "검색 범위 확인", "검색 범위는 앞서 선택한 대상 이미지 전체를 포함해야 합니다.")
+                return
+            x, y, w, h = target.x(), target.y(), target.width(), target.height()
             crop = self.view.frame[y:y+h, x:x+w]
             self.path.parent.mkdir(parents=True, exist_ok=True)
             ok, encoded = cv2.imencode(".png", crop)
             if not ok:
                 raise RuntimeError("PNG 저장 실패")
             encoded.tofile(str(self.path.parent / (name + ".png")))
-            # Search near the calibrated position; inventory icons use inventory ROI at runtime.
-            margin = 12
-            left, top = max(0, x-margin), max(0, y-margin)
-            search = [left, top, min(self.config.width, x+w+margin)-left, min(self.config.height, y+h+margin)-top]
-            if name.startswith("inventory_target_"):
-                # Tooltip position follows whichever inventory cell is hovered.
-                search = [0, 0, self.config.width, self.config.height]
-            self.data["templates"][name] = {"file": name + ".png", "roi": search, "threshold": .90}
+            self.data["templates"][name] = {
+                "file": name + ".png", "roi": roi, "threshold": self.threshold.value() / 100,
+                "crop": [x, y, w, h],
+            }
         else:
             self.data["regions"][name] = roi
         self.data["reviewed_quantities"] = []
         write_json(self.path, self.data)
-        self.status.setText(korean_label(name) + " 저장 완료. 변경으로 기존 검토 표시는 해제되었습니다.")
+        self.pending_crop = None
+        self.status.setText(korean_label(name) + " 저장 완료. 같은 화면은 재사용하며, 화면이 바뀌는 단계에서만 캡처하세요.")
         if self.name.currentIndex() < self.name.count() - 1:
             self.move_item(1)
         else:
             self.show_help()
-            self.status.setText(korean_label(name) + " 저장 완료. 마지막 항목입니다. 미저장 항목과 보정 내용을 검토하세요.")
+            self.tabs.setCurrentIndex(1)
+            self.status.setText("마지막 항목 저장 완료. ② 인식 확인에서 저장 결과와 유사도를 확인하세요.")
 
     def review(self):
         try:
