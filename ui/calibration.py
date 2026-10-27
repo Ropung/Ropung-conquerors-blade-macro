@@ -103,8 +103,8 @@ def capture_steps(quantity):
         ("인벤토리", "상점을 닫고 I키로 인벤토리를 연 화면을 캡처하세요.", ["inventory_open", "dismantle_icon"]),
         ("빈 분해 창", "왼쪽 네 번째 분해 아이콘을 누르고, 분해 칸이 모두 빈 화면을 캡처하세요.",
          ["dismantle_panel", "inventory", "slot_empty", *[f"slot_{i}" for i in range(15)]]),
-        ("인벤토리 대상", "인벤토리에 버들잎 면갑이 있는 화면을 캡처하세요.", ["inventory_target"]),
-        ("인벤토리 아이템 설명", "인벤토리의 버들잎 면갑에 마우스를 올려 설명이 보이게 한 뒤 캡처하세요.", ["inventory_target_name", "inventory_target_blue"]),
+        ("인벤토리 아이템·툴팁", "인벤토리에서 버들잎 면갑에 마우스를 올려 툴팁을 띄우세요. 아이콘과 이름·파란 등급이 한 화면에 함께 보이게 캡처하세요.",
+         ["inventory_target", "inventory_target_name", "inventory_target_blue"]),
         ("분해 등록", "대상만 분해 칸에 등록한 화면을 캡처하세요. 분해 실행 버튼은 아직 누르지 마세요.", ["slot_target", "dismantle_button"]),
     ]
     for amount in dict.fromkeys([*batches(quantity), 1]):
