@@ -25,7 +25,7 @@ class DetectorTests(unittest.TestCase):
         self.detector = Detector.__new__(Detector)
         self.template = np.random.default_rng(12).integers(30, 240, (12, 12, 3), dtype=np.uint8)
         self.detector.images = {"target": self.template}
-        self.detector.profile = SimpleNamespace(templates={"target": {"roi": [0, 0, 100, 100], "threshold": .99}})
+        self.detector.profile = SimpleNamespace(resolution=(2560, 1440), templates={"target": {"roi": [0, 0, 100, 100], "threshold": .99}})
         self.frame = np.zeros((100, 100, 3), dtype=np.uint8)
 
     def test_single_exact_icon(self):

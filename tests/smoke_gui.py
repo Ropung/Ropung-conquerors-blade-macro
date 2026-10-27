@@ -8,7 +8,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from PySide6.QtWidgets import QApplication
 from ui.main_window import MainWindow
-from ui.calibration import CalibrationDialog, capture_steps
+from ui.calibration import CalibrationDialog, CropView, capture_steps
 from core.config import Config, write_json
 from core.image_detector import required_templates
 import json
@@ -23,6 +23,28 @@ with tempfile.TemporaryDirectory() as directory:
         assert window.quantity.maximum() == 20
         assert window.quantity.value() == 15
         assert not window.live.isChecked()
+        window.resolution_box.setCurrentIndex(3)
+        assert window.config.resolution == (1920, 1080)
+        assert Config.load(Path(directory)).resolution == (1920, 1080)
+        small_view = CropView(np.zeros((1080, 1920, 3), dtype=np.uint8))
+        assert small_view.width() == 1920 and small_view.height() == 1080
+        assert small_view.rect_for_frame().width() == 1920
+        fhd_dialog = CalibrationDialog(window.config, Path(directory), window)
+        assert fhd_dialog.data['resolution'] == [1920, 1080]
+        assert fhd_dialog.path == Path(directory) / 'calibration/1920x1080/profile.json'
+        window.show()
+        fhd_dialog.show()
+        with patch('ui.calibration.GameWindow') as game_window, patch('ui.calibration.ScreenCapture') as capture:
+            capture.return_value.capture.return_value = np.zeros((1080, 1920, 3), dtype=np.uint8)
+            fhd_dialog.capture()
+            assert not window.isVisible() and not fhd_dialog.isVisible()
+            assert fhd_dialog.capture_timer.isActive()
+            fhd_dialog.capture_timer.stop()
+            fhd_dialog.capture_now()
+            game_window.assert_called_once_with(window.config.window_title, (1920, 1080))
+            assert window.isVisible() and fhd_dialog.isVisible()
+            assert fhd_dialog.view.width() == 1920
+        fhd_dialog.reject()
         assert window.single_cycle.isChecked()
         assert window.max_dismantle.value() == 15
         assert "실행 결과" in window.result_summary.text()

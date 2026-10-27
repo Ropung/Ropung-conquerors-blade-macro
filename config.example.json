@@ -1,5 +1,7 @@
 {
   "quantity": 15,
+  "width": 2560,
+  "height": 1440,
   "window_title": "컨커러스 블레이드",
   "profile": "calibration/profile.json",
   "live_input": false,

@@ -25,8 +25,23 @@ class Config:
     live_input: bool = False
     timeout_seconds: float = 10
     completion_timeout_seconds: float = 90
+    width: int = 2560
+    height: int = 1440
+
+    @property
+    def resolution(self):
+        return (self.width, self.height)
+
+    @property
+    def calibration_profile(self):
+        path = Path(self.profile)
+        if self.resolution == (2560, 1440):
+            return path
+        return path.parent / f"{self.width}x{self.height}" / path.name
 
     def validate(self):
+        if any(type(v) is not int or not 320 <= v <= 16384 for v in self.resolution):
+            raise ValueError("해상도는 320~16384 범위의 정수여야 합니다.")
         if type(self.quantity) is not int or not 1 <= self.quantity <= 20:
             raise ValueError("구매 수량은 1~20 정수여야 합니다.")
         if not self.window_title.strip():

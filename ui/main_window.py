@@ -6,7 +6,7 @@ from logging.handlers import RotatingFileHandler
 
 from PySide6.QtCore import QThread, Signal, QTimer, Qt
 from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-                               QSpinBox, QPushButton, QPlainTextEdit, QCheckBox, QMessageBox, QProgressBar, QApplication)
+                               QSpinBox, QPushButton, QPlainTextEdit, QCheckBox, QMessageBox, QProgressBar, QApplication, QComboBox)
 
 from core.config import Config, app_root
 from core.controller import run, run_dismantle_once
@@ -100,7 +100,21 @@ class MainWindow(QMainWindow):
         central = QWidget()
         self.setCentralWidget(central)
         layout = QVBoxLayout(central)
-        layout.addWidget(QLabel("버들잎 면갑 구매 → 최대 15개씩 분해 | 2560×1440 전체 창 모드"))
+        layout.addWidget(QLabel("버들잎 면갑 구매 → 최대 15개씩 분해 | 게임 해상도를 아래에서 선택하세요"))
+        resolution_row = QHBoxLayout()
+        resolution_row.addWidget(QLabel("게임 해상도"))
+        self.resolution_box = QComboBox()
+        sizes = [(1280, 720), (1366, 768), (1600, 900), (1920, 1080), (1920, 1200),
+                 (2560, 1080), (2560, 1440), (2560, 1600), (3440, 1440), (3840, 2160)]
+        if self.config.resolution not in sizes:
+            sizes.append(self.config.resolution)
+        for size in sizes:
+            self.resolution_box.addItem(f"{size[0]} × {size[1]}", size)
+        self.resolution_box.setCurrentIndex(sizes.index(self.config.resolution))
+        self.resolution_box.currentIndexChanged.connect(self.save_resolution)
+        resolution_row.addWidget(self.resolution_box)
+        layout.addLayout(resolution_row)
+        layout.addWidget(QLabel("해상도별로 보정 이미지를 따로 저장합니다. 변경 후 해당 해상도에서 보정하세요."))
         row = QHBoxLayout()
         row.addWidget(QLabel("구매 수량"))
         self.quantity = QSpinBox()
@@ -205,6 +219,16 @@ class MainWindow(QMainWindow):
         self.status.setText(f"실행 중 · {phase} · 경과 {elapsed}초 · 마지막 진행 {idle}초 전")
         self.runtime_hint.setText(self.status.text() + "\n" + self.current_step.text())
 
+    def save_resolution(self, index):
+        self.config.width, self.config.height = self.resolution_box.itemData(index)
+        self.config.live_input = False
+        self.live.setChecked(False)
+        try:
+            self.config.save(self.root)
+            self.log(f"해상도 {self.config.width}×{self.config.height} 선택 / 보정 파일: {self.config.calibration_profile}")
+        except OSError as error:
+            self.log("설정 저장 실패: " + str(error))
+
     def save_quantity(self, value):
         self.config.quantity = value
         self.config.live_input = False
@@ -262,6 +286,7 @@ class MainWindow(QMainWindow):
         self.worker.failed.connect(self.show_failure)
         self.worker.finished.connect(self.finished)
         self.quantity.setEnabled(False)
+        self.resolution_box.setEnabled(False)
         self.max_dismantle.setEnabled(False)
         self.result_summary.setText("실행 결과: 작업 중")
         self.calibrate.setEnabled(False)
@@ -317,6 +342,7 @@ class MainWindow(QMainWindow):
         if self.runtime_hint.isVisible():
             self.runtime_hint.setText(self.status.text() + "\n" + (self.stop_reason.text() or self.current_step.text()))
         self.quantity.setEnabled(True)
+        self.resolution_box.setEnabled(True)
         self.max_dismantle.setEnabled(True)
         if self.worker:
             self.result_summary.setText(self.worker.result_text)

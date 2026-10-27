@@ -163,7 +163,7 @@ def run(config, root, control, log, change_state, single_cycle=False, max_disman
     if type(max_dismantle) is not int or max_dismantle < 0:
         raise SafetyError("최대 분해 개수는 0 이상의 정수여야 합니다.")
     change_state(State.CHECKING)
-    profile = Profile(root / config.profile)
+    profile = Profile(root / config.calibration_profile, config.resolution)
     profile.validate(config.quantity)
     first_quantity = next_quantity(config.quantity, max_dismantle, 0)
     planned = {first_quantity}
@@ -178,7 +178,7 @@ def run(config, root, control, log, change_state, single_cycle=False, max_disman
                 raise SafetyError(f"제한 수량에 필요한 {quantity}개 구매·분해 보정 검토가 필요합니다.")
     # Load all images even in read-only mode; invalid files are a hard stop.
     Detector(profile)
-    window = GameWindow(config.window_title)
+    window = GameWindow(config.window_title, config.resolution)
     capture = ScreenCapture(window)
     try:
         if not config.live_input:
@@ -241,13 +241,13 @@ def run_dismantle_once(config, root, control, log, change_state):
     names = {"dismantle_panel", "inventory_target", "slot_target", "slot_empty",
              "inventory_target_name", "inventory_target_blue", "dismantle_button",
              "complete_popup", "complete_confirm", "dismantle_cost_300", f"dismantle_cost_{quantity * 300}"}
-    profile = Profile(root / config.profile)
+    profile = Profile(root / config.calibration_profile, config.resolution)
     profile.templates = {name: spec for name, spec in profile.templates.items() if name in names}
     profile.validate(quantity, template_names=names)
     Detector(profile)
     log(f"3초 후 기존 버들잎 면갑 {quantity}개 분해 테스트. 게임의 분해 창을 활성화하세요. F9 중지.")
     control.delay(3)
-    window = GameWindow(config.window_title)
+    window = GameWindow(config.window_title, config.resolution)
     window.check()
     capture = ScreenCapture(window)
     try:

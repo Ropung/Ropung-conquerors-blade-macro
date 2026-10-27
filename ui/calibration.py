@@ -91,9 +91,9 @@ class CropView(QLabel):
         self.rect = QRect()
         self.overlays = []
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        image = QImage(rgb.data, 2560, 1440, rgb.strides[0], QImage.Format.Format_RGB888).copy()
+        image = QImage(rgb.data, frame.shape[1], frame.shape[0], rgb.strides[0], QImage.Format.Format_RGB888).copy()
         self.setPixmap(QPixmap.fromImage(image))
-        self.setFixedSize(2560, 1440)
+        self.setFixedSize(frame.shape[1], frame.shape[0])
 
     def mousePressEvent(self, event):
         self.start = event.position().toPoint()
@@ -112,7 +112,7 @@ class CropView(QLabel):
             self.update()
 
     def rect_for_frame(self):
-        return QRect(0, 0, 2560, 1440)
+        return QRect(0, 0, self.frame.shape[1], self.frame.shape[0])
 
     def paintEvent(self, event):
         super().paintEvent(event)
@@ -148,19 +148,22 @@ class CalibrationDialog(QDialog):
     def __init__(self, config, root, parent=None):
         super().__init__(parent)
         self.config, self.root = config, root
-        self.path = root / config.profile
+        self.path = root / config.calibration_profile
         self.data = (json.loads(self.path.read_text(encoding="utf-8")) if self.path.exists()
-                     else {"resolution": [2560, 1440], "templates": {}, "regions": {}, "reviewed_quantities": []})
+                     else {"resolution": list(config.resolution), "templates": {}, "regions": {}, "reviewed_quantities": []})
         self.view = None
         self.test_timer = QTimer(self)
         self.test_timer.setSingleShot(True)
         self.test_timer.timeout.connect(self.run_recognition_test)
+        self.capture_timer = QTimer(self)
+        self.capture_timer.setSingleShot(True)
+        self.capture_timer.timeout.connect(self.capture_now)
         self.test_names = []
         self.restore_parent = False
         self.action_worker = None
         self.action_control = None
         self.close_after_action = False
-        self.setWindowTitle("2560×1440 게임 화면 보정 (읽기 전용 캡처)")
+        self.setWindowTitle(f"{config.width}×{config.height} 게임 화면 보정 (읽기 전용 캡처)")
         self.resize(1200, 850)
         layout = QVBoxLayout(self)
         info = QLabel("게임 UI를 수동으로 열고 [캡처] → 영역 드래그 → [저장]. 모든 좌표는 원본 픽셀입니다.\n"
@@ -173,7 +176,7 @@ class CalibrationDialog(QDialog):
         self.name = QComboBox()
         row.addWidget(self.kind)
         row.addWidget(self.name, 1)
-        capture = QPushButton("게임 캡처")
+        capture = QPushButton("게임 캡처 (창 숨김 · 3초 후)")
         capture.clicked.connect(self.capture)
         row.addWidget(capture)
         save = QPushButton("선택 영역 저장")
@@ -342,7 +345,7 @@ class CalibrationDialog(QDialog):
         if key == "quantity":
             required.append(f"quantity_{self.config.quantity}")
         try:
-            profile = Profile(self.path)
+            profile = Profile(self.path, self.config.resolution)
             missing = [name for name in required if name not in profile.templates]
             if missing:
                 description = "\n".join("• " + korean_label(name) for name in missing)
@@ -395,9 +398,18 @@ class CalibrationDialog(QDialog):
             self.reject()
 
     def capture(self):
+        if self.test_timer.isActive() or self.capture_timer.isActive() or (self.action_worker and self.action_worker.isRunning()):
+            return
+        self.restore_parent = bool(self.parentWidget() and self.parentWidget().isVisible())
+        self.hide()
+        if self.restore_parent:
+            self.parentWidget().hide()
+        self.capture_timer.start(3000)
+
+    def capture_now(self):
         capture = None
         try:
-            capture = ScreenCapture(GameWindow(self.config.window_title))
+            capture = ScreenCapture(GameWindow(self.config.window_title, self.config.resolution))
             frame = capture.capture(foreground=False)
             self.view = CropView(frame)
             self.view.selected.connect(lambda r: self.status.setText(f"선택: x={r.x()}, y={r.y()}, w={r.width()}, h={r.height()}"))
@@ -408,6 +420,7 @@ class CalibrationDialog(QDialog):
         finally:
             if capture:
                 capture.close()
+            self.restore_test_windows()
 
     def schedule_test(self, whole_stage):
         name = self.name.currentData()
@@ -435,17 +448,17 @@ class CalibrationDialog(QDialog):
         capture = None
         reports, overlays = [], []
         try:
-            profile = Profile(self.path)
+            profile = Profile(self.path, self.config.resolution)
             # No full-profile validation: unfinished stages may be tested separately.
             names = [name for name in self.test_names if not is_region(name) and name in profile.templates]
-            capture = ScreenCapture(GameWindow(self.config.window_title))
+            capture = ScreenCapture(GameWindow(self.config.window_title, self.config.resolution))
             frame = capture.capture(foreground=True)
             detector = Detector(profile, names=names)
             for name in self.test_names:
                 label = korean_label(name)
                 if is_region(name):
                     region = profile.regions.get(name)
-                    if valid_rect(region):
+                    if valid_rect(region, self.config.resolution):
                         overlays.append((QRect(*region), label, Qt.GlobalColor.yellow))
                         reports.append(f"[영역 표시] {label}: {region} (아이템 인식 결과 아님)")
                     else:
@@ -498,6 +511,7 @@ class CalibrationDialog(QDialog):
             self.stop_action()
             return
         self.test_timer.stop()
+        self.capture_timer.stop()
         if self.restore_parent and self.parentWidget():
             self.parentWidget().showNormal()
         self.restore_parent = False
@@ -521,10 +535,10 @@ class CalibrationDialog(QDialog):
             # Search near the calibrated position; inventory icons use inventory ROI at runtime.
             margin = 12
             left, top = max(0, x-margin), max(0, y-margin)
-            search = [left, top, min(2560, x+w+margin)-left, min(1440, y+h+margin)-top]
+            search = [left, top, min(self.config.width, x+w+margin)-left, min(self.config.height, y+h+margin)-top]
             if name.startswith("inventory_target_"):
                 # Tooltip position follows whichever inventory cell is hovered.
-                search = [0, 0, 2560, 1440]
+                search = [0, 0, self.config.width, self.config.height]
             self.data["templates"][name] = {"file": name + ".png", "roi": search, "threshold": .90}
         else:
             self.data["regions"][name] = roi
@@ -539,7 +553,7 @@ class CalibrationDialog(QDialog):
 
     def review(self):
         try:
-            profile = Profile(self.path)
+            profile = Profile(self.path, self.config.resolution)
             profile.validate(self.config.quantity)
             Detector(profile)
         except Exception as error:

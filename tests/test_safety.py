@@ -63,7 +63,7 @@ class SafetyTests(unittest.TestCase):
     def test_no_input_in_read_only_mode(self):
         backend = Mock()
         with patch.dict("sys.modules", {"pyautogui": backend, "pydirectinput": backend}):
-            inputs = InputController(Mock(origin=(0, 0)), RunControl())
+            inputs = InputController(Mock(origin=(0, 0), resolution=(2560, 1440)), RunControl())
             with self.assertRaises(SafetyError):
                 inputs.key("f")
         backend.press.assert_not_called()
@@ -73,7 +73,7 @@ class SafetyTests(unittest.TestCase):
         backend = Mock()
         control = RunControl()
         with patch.dict("sys.modules", {"pyautogui": backend, "pydirectinput": backend}), patch.object(control, "delay") as delay:
-            inputs = InputController(Mock(origin=(0, 0)), control, enabled=True)
+            inputs = InputController(Mock(origin=(0, 0), resolution=(2560, 1440)), control, enabled=True)
             inputs.key("f")
         backend.keyDown.assert_called_once_with("f")
         backend.keyUp.assert_called_once_with("f")
@@ -83,7 +83,7 @@ class SafetyTests(unittest.TestCase):
         mouse, scan = Mock(), Mock()
         control = RunControl()
         with patch.dict("sys.modules", {"pyautogui": mouse, "pydirectinput": scan}), patch.object(control, "delay"):
-            inputs = InputController(Mock(origin=(0, 0)), control, enabled=True)
+            inputs = InputController(Mock(origin=(0, 0), resolution=(2560, 1440)), control, enabled=True)
             inputs.key("f")
         scan.keyDown.assert_called_once_with("f")
         scan.keyUp.assert_called_once_with("f")
@@ -94,7 +94,7 @@ class SafetyTests(unittest.TestCase):
     def test_quantity_fifteen_appends_only_five(self):
         mouse, scan = Mock(), Mock()
         with patch.dict("sys.modules", {"pyautogui": mouse, "pydirectinput": scan}):
-            inputs = InputController(Mock(origin=(0, 0)), RunControl(), enabled=True)
+            inputs = InputController(Mock(origin=(0, 0), resolution=(2560, 1440)), RunControl(), enabled=True)
             inputs.quantity(15)
         scan.keyDown.assert_not_called()
         mouse.hotkey.assert_not_called()
@@ -105,7 +105,7 @@ class SafetyTests(unittest.TestCase):
         control = RunControl()
         backend.keyDown.side_effect = lambda key: control.stop()
         with patch.dict("sys.modules", {"pyautogui": backend, "pydirectinput": backend}):
-            inputs = InputController(Mock(origin=(0, 0)), control, enabled=True)
+            inputs = InputController(Mock(origin=(0, 0), resolution=(2560, 1440)), control, enabled=True)
             with self.assertRaises(Stopped):
                 inputs.key("f")
         backend.keyUp.assert_called_once_with("f")
@@ -115,7 +115,7 @@ class SafetyTests(unittest.TestCase):
         control = RunControl()
         control.stop()
         with patch.dict("sys.modules", {"pyautogui": backend, "pydirectinput": backend}):
-            inputs = InputController(Mock(origin=(0, 0)), control, enabled=True)
+            inputs = InputController(Mock(origin=(0, 0), resolution=(2560, 1440)), control, enabled=True)
             with self.assertRaises(Stopped):
                 inputs.click((100, 100))
         backend.click.assert_not_called()
@@ -126,7 +126,7 @@ class SafetyTests(unittest.TestCase):
         mouse, direct = Mock(), Mock()
         control = RunControl()
         with patch.dict("sys.modules", {"pyautogui": mouse, "pydirectinput": direct}), patch.object(control, "delay") as delay:
-            inputs = InputController(Mock(origin=(0, 0)), control, enabled=True)
+            inputs = InputController(Mock(origin=(0, 0), resolution=(2560, 1440)), control, enabled=True)
             inputs.click((100, 100))
         direct.mouseDown.assert_called_once_with(button="left")
         direct.mouseUp.assert_called_once_with(button="left")
@@ -139,7 +139,7 @@ class SafetyTests(unittest.TestCase):
         backend = Mock()
         control = RunControl()
         with patch.dict("sys.modules", {"pyautogui": backend, "pydirectinput": backend}), patch.object(control, "delay") as delay:
-            inputs = InputController(Mock(origin=(0, 0)), control, enabled=True)
+            inputs = InputController(Mock(origin=(0, 0), resolution=(2560, 1440)), control, enabled=True)
             inputs.move((100, 100), fast=True)
             inputs.click((100, 100), button="right", positioned=True)
         backend.moveTo.assert_called_once_with(100, 100, _pause=False)
@@ -152,7 +152,7 @@ class SafetyTests(unittest.TestCase):
         control = RunControl()
         backend.mouseDown.side_effect = lambda **kwargs: control.stop()
         with patch.dict("sys.modules", {"pyautogui": backend, "pydirectinput": backend}):
-            inputs = InputController(Mock(origin=(0, 0)), control, enabled=True)
+            inputs = InputController(Mock(origin=(0, 0), resolution=(2560, 1440)), control, enabled=True)
             with self.assertRaises(Stopped):
                 inputs.click((100, 100), button="right", positioned=True)
         backend.mouseUp.assert_called_once_with(button="right", _pause=False)
@@ -162,7 +162,7 @@ class SafetyTests(unittest.TestCase):
         control = RunControl()
         backend.mouseDown.side_effect = lambda **kwargs: control.stop()
         with patch.dict("sys.modules", {"pyautogui": backend, "pydirectinput": backend}):
-            inputs = InputController(Mock(origin=(0, 0)), control, enabled=True)
+            inputs = InputController(Mock(origin=(0, 0), resolution=(2560, 1440)), control, enabled=True)
             with self.assertRaises(Stopped):
                 inputs.click((100, 100), button="right")
         backend.mouseUp.assert_called_once_with(button="right")
@@ -172,7 +172,7 @@ class SafetyTests(unittest.TestCase):
         mouse.position.return_value = (2015, 1135)
         control = RunControl()
         with patch.dict("sys.modules", {"pyautogui": mouse, "pydirectinput": direct}), patch.object(control, "delay"):
-            inputs = InputController(Mock(origin=(0, 0)), control, enabled=True)
+            inputs = InputController(Mock(origin=(0, 0), resolution=(2560, 1440)), control, enabled=True)
             inputs.click_ui((2015, 1135))
         mouse.mouseDown.assert_called_once_with(button="left")
         mouse.mouseUp.assert_called_once_with(button="left")
@@ -184,7 +184,7 @@ class SafetyTests(unittest.TestCase):
         mouse.position.return_value = (1900, 1000)
         control = RunControl()
         with patch.dict("sys.modules", {"pyautogui": mouse, "pydirectinput": Mock()}), patch.object(control, "delay"):
-            inputs = InputController(Mock(origin=(0, 0)), control, enabled=True)
+            inputs = InputController(Mock(origin=(0, 0), resolution=(2560, 1440)), control, enabled=True)
             with self.assertRaises(SafetyError):
                 inputs.click_ui((2015, 1135))
         mouse.mouseDown.assert_not_called()
@@ -193,7 +193,7 @@ class SafetyTests(unittest.TestCase):
         backend = Mock()
         control = RunControl()
         with patch.dict("sys.modules", {"pyautogui": backend, "pydirectinput": backend}):
-            inputs = InputController(Mock(origin=(0, 0)), control, enabled=True)
+            inputs = InputController(Mock(origin=(0, 0), resolution=(2560, 1440)), control, enabled=True)
             control.pause()
             control.resume()
             with self.assertRaises(SafetyError):

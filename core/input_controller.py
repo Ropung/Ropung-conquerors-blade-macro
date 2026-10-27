@@ -31,7 +31,8 @@ class InputController:
 
     def move(self, point, *, fast=False):
         x, y = point
-        if not 0 <= x < 2560 or not 0 <= y < 1440:
+        width, height = self.window.resolution
+        if not 0 <= x < width or not 0 <= y < height:
             raise SafetyError("게임 영역 밖 입력 거부")
         left, top = self.window.origin
         options = {"_pause": False} if fast else {}
@@ -76,7 +77,8 @@ class InputController:
     def click_ui(self, point):
         """NPC menu clicks use Windows cursor placement and mouse events."""
         x, y = point
-        if not 0 <= x < 2560 or not 0 <= y < 1440:
+        width, height = self.window.resolution
+        if not 0 <= x < width or not 0 <= y < height:
             raise SafetyError("게임 영역 밖 입력 거부")
         left, top = self.window.origin
         target = (left + x, top + y)

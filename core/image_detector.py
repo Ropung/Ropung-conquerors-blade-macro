@@ -20,19 +20,23 @@ def required_templates(quantity):
     return sorted(names)
 
 
-def valid_rect(rect):
+def valid_rect(rect, resolution=(2560, 1440)):
     return (isinstance(rect, list) and len(rect) == 4
             and all(type(v) is int for v in rect)
             and rect[0] >= 0 and rect[1] >= 0 and rect[2] > 0 and rect[3] > 0
-            and rect[0] + rect[2] <= 2560 and rect[1] + rect[3] <= 1440)
+            and rect[0] + rect[2] <= resolution[0] and rect[1] + rect[3] <= resolution[1])
 
 
 class Profile:
-    def __init__(self, path):
+    def __init__(self, path, resolution=None):
         self.path = Path(path)
         self.data = json.loads(self.path.read_text(encoding="utf-8"))
-        if self.data.get("resolution") != [2560, 1440]:
-            raise SafetyError("캘리브레이션 해상도가 2560×1440이 아닙니다.")
+        self.resolution = self.data.get("resolution")
+        if (not isinstance(self.resolution, list) or len(self.resolution) != 2
+                or any(type(v) is not int or not 320 <= v <= 16384 for v in self.resolution)):
+            raise SafetyError("보정 파일 해상도가 올바르지 않습니다.")
+        if resolution is not None and tuple(self.resolution) != tuple(resolution):
+            raise SafetyError("선택한 해상도와 보정 파일 해상도가 다릅니다. 해당 해상도에서 다시 보정하세요.")
         self.templates = self.data.get("templates", {})
         # Obsolete interaction prompt crops are no longer used or loaded.
         for obsolete in ("npc_ready", "shop_target_name", "shop_target_blue", "shop_target_identity"):
@@ -44,7 +48,7 @@ class Profile:
         if missing:
             raise SafetyError("템플릿 누락: " + ", ".join(sorted(missing)))
         for key in ["inventory", *[f"slot_{i}" for i in range(15)]]:
-            if not valid_rect(self.regions.get(key)):
+            if not valid_rect(self.regions.get(key), self.resolution):
                 raise SafetyError("영역 보정 필요: " + key)
         slots = [self.regions[f"slot_{i}"] for i in range(15)]
         for i, a in enumerate(slots):
@@ -52,7 +56,7 @@ class Profile:
                 if a[0] < b[0]+b[2] and b[0] < a[0]+a[2] and a[1] < b[1]+b[3] and b[1] < a[1]+a[3]:
                     raise SafetyError("분해 슬롯 영역이 겹칩니다.")
         for name, spec in self.templates.items():
-            if not valid_rect(spec.get("roi")):
+            if not valid_rect(spec.get("roi"), self.resolution):
                 raise SafetyError("잘못된 템플릿 ROI: " + name)
             threshold = spec.get("threshold", 0.97)
             if not isinstance(threshold, (int, float)) or not .90 <= threshold <= 1:
@@ -89,7 +93,7 @@ class Detector:
         for name, spec in profile.templates.items():
             if names is not None and name not in names:
                 continue
-            if not valid_rect(spec.get("roi")):
+            if not valid_rect(spec.get("roi"), profile.resolution):
                 raise SafetyError("잘못된 템플릿 검색 영역: " + name)
             threshold = spec.get("threshold", .97)
             if not isinstance(threshold, (int, float)) or not .90 <= threshold <= 1:
@@ -102,7 +106,7 @@ class Detector:
                 raise SafetyError("유효한 상세 이미지가 필요합니다: " + name)
             if name in ("slot_empty", "slot_target"):
                 for key, rect in profile.regions.items():
-                    if key.startswith("slot_") and valid_rect(rect) and (image.shape[1] > rect[2] or image.shape[0] > rect[3]):
+                    if key.startswith("slot_") and valid_rect(rect, profile.resolution) and (image.shape[1] > rect[2] or image.shape[0] > rect[3]):
                         raise SafetyError(f"{name}: 이미지가 분해 한 칸보다 큽니다. 여러 칸 전체가 아닌 한 칸 내부만 다시 저장하세요.")
             self.images[name] = image
 
@@ -112,7 +116,7 @@ class Detector:
         import numpy as np
         spec = self.profile.templates[name]
         roi = region or spec["roi"]
-        if not valid_rect(roi):
+        if not valid_rect(roi, self.profile.resolution):
             raise SafetyError("잘못된 검색 영역: " + name)
         x, y, w, h = roi
         template = self.images[name]

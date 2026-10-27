@@ -14,7 +14,8 @@ def enable_dpi_awareness():
 
 
 class GameWindow:
-    def __init__(self, title):
+    def __init__(self, title, resolution=(2560, 1440)):
+        self.resolution = tuple(resolution)
         if sys.platform != "win32":
             raise SafetyError("Windows에서만 실행할 수 있습니다.")
         self.user32 = ctypes.WinDLL("user32", use_last_error=True)
@@ -26,7 +27,6 @@ class GameWindow:
         u.IsIconic.argtypes = [wintypes.HWND]
         u.GetClientRect.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.RECT)]
         u.ClientToScreen.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.POINT)]
-        u.GetWindowRect.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.RECT)]
         u.SetForegroundWindow.argtypes = [wintypes.HWND]
         u.IsWindow.argtypes = [wintypes.HWND]
         callback_type = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
@@ -59,19 +59,17 @@ class GameWindow:
             raise SafetyError("게임 창이 사라졌거나 최소화되었습니다.")
         if foreground and u.GetForegroundWindow() != self.hwnd:
             raise SafetyError("게임이 활성 창이 아니므로 중지합니다.")
-        rect, outer, point = wintypes.RECT(), wintypes.RECT(), wintypes.POINT(0, 0)
+        rect, point = wintypes.RECT(), wintypes.POINT(0, 0)
         if not u.GetClientRect(self.hwnd, ctypes.byref(rect)) or not u.ClientToScreen(self.hwnd, ctypes.byref(point)):
             raise SafetyError("게임 창 좌표를 가져오지 못했습니다.")
-        u.GetWindowRect(self.hwnd, ctypes.byref(outer))
-        if (rect.right, rect.bottom) != (2560, 1440):
-            raise SafetyError(f"2560×1440 필요: 현재 {rect.right}×{rect.bottom}")
-        if (outer.left, outer.top, outer.right, outer.bottom) != (point.x, point.y, point.x + 2560, point.y + 1440):
-            raise SafetyError("테두리 없는 전체 창 모드를 확인하세요.")
+        width, height = self.resolution
+        if (rect.right, rect.bottom) != (width, height):
+            raise SafetyError(f"선택 해상도 {width}×{height} / 실제 게임 {rect.right}×{rect.bottom}. 메인 화면의 해상도를 게임과 맞추세요.")
         current = (point.x, point.y)
         if self.origin is not None and self.origin != current:
             raise SafetyError("게임 위치가 변경되었습니다. 다시 시작하세요.")
         self.origin = current
-        return {"left": point.x, "top": point.y, "width": 2560, "height": 1440}
+        return {"left": point.x, "top": point.y, "width": width, "height": height}
 
 
 class ScreenCapture:
@@ -83,10 +81,11 @@ class ScreenCapture:
 
     def capture(self, foreground=True):
         import numpy as np
-        frame = np.array(self.grabber.grab(self.window.check(foreground)))[:, :, :3].copy()
+        region = self.window.check(foreground)
+        frame = np.array(self.grabber.grab(region))[:, :, :3].copy()
         # Sample the whole image on a regular grid instead of calculating
         # variance over eleven million channels for every registration check.
-        if frame.shape != (1440, 2560, 3) or frame[::16, ::16].std() < 2:
+        if frame.shape != (region["height"], region["width"], 3) or frame[::16, ::16].std() < 2:
             raise SafetyError("화면 캡처가 비어 있거나 잘못되었습니다.")
         return frame
 

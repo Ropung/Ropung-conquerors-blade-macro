@@ -57,7 +57,7 @@ def run_step_test(config, root, control, key, log):
     definition = next((item for item in NAVIGATION_STEPS if item[0] == key), None)
     if definition is None:
         raise SafetyError("사용할 수 없는 테스트 동작입니다.")
-    profile = Profile(root / config.profile)
+    profile = Profile(root / config.calibration_profile, config.resolution)
     names = list(definition[2])
     if key == "quantity":
         if type(config.quantity) is not int or not 1 <= config.quantity <= 20:
@@ -70,7 +70,7 @@ def run_step_test(config, root, control, key, log):
     profile.templates = {name: profile.templates[name] for name in names}
     log("3초 후 선택한 동작 1회 실행. 게임을 활성화하세요. F9 중지.")
     control.delay(3)
-    window = GameWindow(config.window_title)
+    window = GameWindow(config.window_title, config.resolution)
     # User activates the game; do not steal focus from another app.
     window.check()
     log("게임 창 활성화·해상도 확인 완료")
