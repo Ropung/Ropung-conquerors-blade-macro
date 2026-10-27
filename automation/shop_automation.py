@@ -13,7 +13,7 @@ def purchase(session, quantity):
     set_quantity(session, quantity)
     # All observations are repeated immediately before spending coins.
     frame = session.frame()
-    session.require(frame, "buy_popup", "buy_target_name", "buy_target_blue",
+    session.require(frame, "buy_popup", "buy_target_identity",
                     f"quantity_{quantity}", f"buy_cost_{quantity * 1600}")
     session.control.stats.begin_purchase(quantity)
     session.inputs.click(session.detector.one(frame, "buy_confirm"))

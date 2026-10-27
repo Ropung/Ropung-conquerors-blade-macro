@@ -9,8 +9,7 @@ def required_templates(quantity):
     names = {
         "shop_menu", "shop_open", "page_two", "page_two_active",
         "shop_target", "buy_button", "buy_popup",
-        "buy_target_name", "buy_target_blue",
-        "inventory_target_name", "inventory_target_blue",
+        "buy_target_identity", "inventory_target_identity",
         "quantity_field", "buy_cost_1600", "buy_confirm", "inventory_open", "dismantle_icon",
         "dismantle_panel", "inventory_target", "slot_target", "slot_empty",
         "dismantle_button", "complete_popup", "complete_confirm", "dismantle_cost_300",
@@ -39,7 +38,8 @@ class Profile:
             raise SafetyError("선택한 해상도와 보정 파일 해상도가 다릅니다. 해당 해상도에서 다시 보정하세요.")
         self.templates = self.data.get("templates", {})
         # Obsolete interaction prompt crops are no longer used or loaded.
-        for obsolete in ("npc_ready", "shop_target_name", "shop_target_blue", "shop_target_identity"):
+        for obsolete in ("npc_ready", "shop_target_name", "shop_target_blue", "shop_target_identity",
+                         "buy_target_name", "buy_target_blue", "inventory_target_name", "inventory_target_blue"):
             self.templates.pop(obsolete, None)
         self.regions = self.data.get("regions", {})
 

@@ -239,7 +239,7 @@ def run_dismantle_once(config, root, control, log, change_state):
     if not config.live_input or type(quantity) is not int or not 1 <= quantity <= 15:
         raise SafetyError("실제 입력 활성화 및 1~15개 수량 설정이 필요합니다.")
     names = {"dismantle_panel", "inventory_target", "slot_target", "slot_empty",
-             "inventory_target_name", "inventory_target_blue", "dismantle_button",
+             "inventory_target_identity", "dismantle_button",
              "complete_popup", "complete_confirm", "dismantle_cost_300", f"dismantle_cost_{quantity * 300}"}
     profile = Profile(root / config.calibration_profile, config.resolution)
     profile.templates = {name: spec for name, spec in profile.templates.items() if name in names}

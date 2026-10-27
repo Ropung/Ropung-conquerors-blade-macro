@@ -50,8 +50,8 @@ with tempfile.TemporaryDirectory() as directory:
         assert window.max_dismantle.value() == 15
         assert "실행 결과" in window.result_summary.text()
         assert window.stop_reason.text() == ""
-        window.show_failure("inventory_target_name: 인식 실패")
-        assert "인벤토리 대상 이름" in window.stop_reason.text()
+        window.show_failure("inventory_target_identity: 인식 실패")
+        assert "인벤토리 아이콘·이름·파란 등급 확인" in window.stop_reason.text()
         window.started_at = window.last_update_at = 0
         window.refresh_progress()
         assert "경과" in window.status.text()

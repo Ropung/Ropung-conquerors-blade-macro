@@ -221,7 +221,7 @@ class MainWindow(QMainWindow):
             self.current_step.setText("현재 단계: " + message)
 
     def show_failure(self, reason):
-        labels = {"inventory_target_name": "인벤토리 대상 이름", "inventory_target_blue": "인벤토리 파란 등급", "complete_popup": "분해 완료 팝업"}
+        labels = {"inventory_target_identity": "인벤토리 아이콘·이름·파란 등급 확인", "complete_popup": "분해 완료 팝업"}
         for key, label in labels.items():
             reason = reason.replace(key, label)
         self.stop_reason.setText("중지 이유: " + reason)

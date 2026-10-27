@@ -42,7 +42,7 @@ def register(session, amount, remaining, initial_count=0):
         raise SafetyError("등록할 대상 아이콘 수가 부족합니다.")
     session.log(f"같은 아이템 {amount}개 확인 · 첫 아이템 이름·등급 확인 중")
     session.inputs.move(points[0])
-    session.expect_all(("dismantle_panel", "inventory_target_name", "inventory_target_blue"), timeout=3)
+    session.expect_all(("dismantle_panel", "inventory_target_identity"), timeout=3)
     template = session.detector.images["inventory_target"]
     th, tw = template.shape[:2]
     frame = session.frame()
@@ -52,7 +52,8 @@ def register(session, amount, remaining, initial_count=0):
         session.require(frame, "dismantle_panel")
         x, y = point
         left, top = max(0, x-tw//2-2), max(0, y-th//2-2)
-        region = [left, top, min(2560-left, tw+4), min(1440-top, th+4)]
+        width, height = session.config.resolution
+        region = [left, top, min(width-left, tw+4), min(height-top, th+4)]
         fresh = session.detector.find_all(frame, "inventory_target", region)
         if not any(abs(point[0]-p[0]) <= 2 and abs(point[1]-p[1]) <= 2 for p in fresh):
             raise SafetyError(f"등록 {initial_count + index + 1}번째: 대상 아이콘/위치가 바뀌었습니다.")

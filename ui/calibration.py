@@ -28,14 +28,12 @@ LABELS = {
     "quantity_plus": "구매 수량 + 버튼",
     "quantity_minus": "구매 수량 − 버튼",
     "buy_confirm": "구매 수량 창의 최종 구매 확인 버튼",
-    "buy_target_name": "구매 확인 창의 버들잎 면갑 이름",
-    "buy_target_blue": "구매 확인 창의 파란 등급 표시",
+    "buy_target_identity": "구매 확인 창의 아이템 아이콘·이름·파란 등급 한 세트",
     "inventory_open": "인벤토리가 열린 화면의 고정 표시",
     "dismantle_icon": "인벤토리 왼쪽 네 번째 분해 아이콘",
     "dismantle_panel": "분해 창의 고정 제목/표시",
     "inventory_target": "인벤토리의 버들잎 면갑 아이콘",
-    "inventory_target_name": "인벤토리 툴팁의 버들잎 면갑 이름",
-    "inventory_target_blue": "인벤토리 툴팁의 파란 등급 표시",
+    "inventory_target_identity": "아이템 툴팁의 아이콘·이름·파란 등급 한 세트",
     "slot_target": "버들잎 면갑이 등록된 분해 칸 이미지",
     "slot_empty": "비어 있는 분해 칸 이미지",
     "dismantle_button": "분해 실행 버튼",
@@ -83,6 +81,8 @@ def item_tooltip(name):
         detail = "버들잎 면갑과 같은 줄의 구매 버튼 하나를 글자·테두리까지 선택하세요. 마우스는 버튼에서 떼고 촬영하세요. 다른 구매 버튼은 검색 범위에서 제외하세요."
     elif name == "quantity_field":
         detail = "수량 입력칸 전체를 테두리까지 선택합니다. 실제 입력 시 칸의 오른쪽 부분을 클릭합니다."
+    elif name in ("inventory_target_identity", "buy_target_identity"):
+        detail = "아이콘·아이템 이름·파란 등급을 모두 포함하는 사각형 하나를 선택하세요. 세 부분을 따로 저장하지 않습니다."
     elif name in CLICK_TARGETS:
         detail = "버튼·아이템 하나를 선택합니다. 인식한 이미지의 중앙이 클릭 대상입니다. 검색 범위는 다음 단계에서 별도로 지정합니다."
     elif "cost_" in name or name.startswith("quantity_"):
@@ -98,13 +98,13 @@ def capture_steps(quantity):
         ("상점", "마구 상점을 클릭해 들어간 화면을 캡처하세요.", ["shop_open", "page_two"]),
         ("상점 2페이지", "2페이지로 이동한 화면을 캡처하세요.", ["page_two_active", "shop_target", "buy_button"]),
         ("구매 수량 창", f"구매 버튼을 누르고 수량을 {quantity}개로 입력한 화면을 캡처하세요. 최종 구매는 아직 누르지 마세요.",
-         list(dict.fromkeys(["buy_popup", "quantity_field", f"quantity_{quantity}", "buy_target_name", "buy_target_blue", f"buy_cost_{quantity * 1600}", "buy_confirm"]))),
+         list(dict.fromkeys(["buy_popup", "quantity_field", f"quantity_{quantity}", "buy_target_identity", f"buy_cost_{quantity * 1600}", "buy_confirm"]))),
         ("구매 수량 1개", "수량을 1개로 맞춰 비용 1,600 표시만 캡처하세요.", ["buy_cost_1600"] if quantity != 1 else []),
         ("인벤토리", "상점을 닫고 I키로 인벤토리를 연 화면을 캡처하세요.", ["inventory_open", "dismantle_icon"]),
         ("빈 분해 창", "왼쪽 네 번째 분해 아이콘을 누르고, 분해 칸이 모두 빈 화면을 캡처하세요.",
          ["dismantle_panel", "inventory", "slot_empty", *[f"slot_{i}" for i in range(15)]]),
-        ("인벤토리 아이템·툴팁", "인벤토리에서 버들잎 면갑에 마우스를 올려 툴팁을 띄우세요. 아이콘과 이름·파란 등급이 한 화면에 함께 보이게 캡처하세요.",
-         ["inventory_target", "inventory_target_name", "inventory_target_blue"]),
+        ("인벤토리 아이템·툴팁", "버들잎 면갑 아이콘에 마우스를 올려 아이콘과 툴팁이 함께 보이게 한 번 캡처하세요. 그 한 화면에서 인벤토리 칸 아이콘(후보 찾기)과 툴팁의 아이콘·이름·파란 등급 전체(정체성 확인)를 각각 한 장씩 저장합니다.",
+         ["inventory_target", "inventory_target_identity"]),
         ("분해 등록", "대상만 분해 칸에 등록한 화면을 캡처하세요. 분해 실행 버튼은 아직 누르지 마세요.", ["slot_target", "dismantle_button"]),
     ]
     for amount in dict.fromkeys([*batches(quantity), 1]):
@@ -419,6 +419,8 @@ class CalibrationDialog(QDialog):
             self.view.update()
         if name == "shop_target":
             hint = "버들잎 면갑의 아이콘·이름·파란 등급이 함께 보이는 상점 항목을 선택하세요. 별도 툴팁 캡처는 필요 없습니다."
+        elif name in ("inventory_target_identity", "buy_target_identity"):
+            hint = "아이콘·아이템 이름·파란 등급이 모두 들어오도록 한 사각형으로 한 번만 드래그하세요. 세 부분을 각각 선택하지 않습니다."
         elif name == "buy_button":
             hint = "파란 버들잎 면갑과 같은 줄의 구매 버튼 하나만 글자·테두리까지 감싸세요. 다른 구매 버튼과 배경은 제외하고 마우스는 버튼에서 떼세요."
         elif name == "quantity_field":
