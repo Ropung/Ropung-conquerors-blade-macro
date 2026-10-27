@@ -9,7 +9,13 @@ if not exist ".venv\Scripts\python.exe" (
 if errorlevel 1 exit /b 1
 ".venv\Scripts\python.exe" -m PyInstaller --noconfirm --clean --onefile --windowed --name ConquerorsBladeMacro main.py
 if errorlevel 1 exit /b 1
-copy /y config.example.json dist\config.example.json >nul
-copy /y README.md dist\README.md >nul
-copy /y PLAN.txt dist\PLAN.txt >nul
-echo Build ready in dist. Keep EXE in a writable folder. Calibration is created beside EXE.
+rmdir /s /q release 2>nul
+mkdir release\ConquerorsBladeMacro
+copy /y dist\ConquerorsBladeMacro.exe release\ConquerorsBladeMacro\ >nul
+copy /y config.example.json release\ConquerorsBladeMacro\config.example.json >nul
+copy /y README.md release\ConquerorsBladeMacro\README.md >nul
+copy /y PLAN.txt release\ConquerorsBladeMacro\PLAN.txt >nul
+if exist calibration\ (xcopy calibration release\ConquerorsBladeMacro\calibration\ /e /i /y >nul)
+powershell -NoProfile -Command "Compress-Archive -Path 'release\ConquerorsBladeMacro' -DestinationPath 'dist\ConquerorsBladeMacro-Windows.zip' -Force"
+if errorlevel 1 exit /b 1
+echo Share dist\ConquerorsBladeMacro-Windows.zip. Recipients only need to unzip it and run ConquerorsBladeMacro.exe.

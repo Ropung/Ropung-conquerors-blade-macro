@@ -25,8 +25,12 @@ jobs:
       - name: Build standalone EXE
         run: |
           python -m PyInstaller --noconfirm --clean --onefile --windowed --name ConquerorsBladeMacro main.py
-          Copy-Item config.example.json,README.md,PLAN.txt dist/
+          New-Item -ItemType Directory -Path release/ConquerorsBladeMacro -Force
+          Copy-Item dist/ConquerorsBladeMacro.exe release/ConquerorsBladeMacro/
+          Copy-Item config.example.json,README.md,PLAN.txt release/ConquerorsBladeMacro/
+          if (Test-Path calibration) { Copy-Item calibration release/ConquerorsBladeMacro/calibration -Recurse }
+          Compress-Archive -Path release/ConquerorsBladeMacro -DestinationPath dist/ConquerorsBladeMacro-Windows.zip -Force
       - uses: actions/upload-artifact@v4
         with:
           name: ConquerorsBladeMacro-Windows
-          path: dist/
+          path: dist/ConquerorsBladeMacro-Windows.zip
