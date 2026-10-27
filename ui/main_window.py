@@ -153,6 +153,22 @@ class MainWindow(QMainWindow):
         self.dismantle_test_button = QPushButton("기존 아이템 분해만 1회 테스트 (구매 안 함)")
         self.dismantle_test_button.clicked.connect(self.start_dismantle_test)
         layout.addWidget(self.dismantle_test_button)
+        tooltips = {
+            self.resolution_box: "게임 내부 화면 크기와 같게 선택하세요. 해상도별로 보정 파일을 따로 사용하며 게임 자체의 해상도를 바꾸지는 않습니다.",
+            self.quantity: "한 번에 구매할 수량(1~20)입니다. 20개는 최대 15개씩 나누어 분해합니다. 해당 수량의 비용·이미지 보정이 필요합니다.",
+            self.calibrate: "① 캡처·보정 → ② 인식 확인 → ③ 동작 테스트 → ④ 최종 검토 순서로 준비합니다. 버튼과 항목 위에 마우스를 올리면 설명을 볼 수 있습니다.",
+            self.max_dismantle: "이번 실행에서 분해할 최대 개수입니다. 0은 제한 없음입니다. 1회 테스트가 켜져 있으면 그보다 먼저 한 사이클 후 중지할 수 있습니다.",
+            self.live: "꺼져 있으면 F6은 읽기 전용 진단입니다. 켜면 실제 구매·분해로 코인과 아이템이 소모됩니다. 보정 검토와 단축키 등록이 필요합니다.",
+            self.single_cycle: "구매→분해 한 사이클을 마치면 자동 중지합니다. 반복 실행하려면 해제하세요. 실행 종료 후 다시 켜집니다.",
+            self.start_button: "실제 입력이 꺼져 있으면 화면 진단만 합니다. 켜져 있으면 준비 상태를 검사한 뒤 자동 구매·분해를 시작합니다.",
+            self.pause_button: "진행 중인 작업을 일시정지합니다. 재개는 F10입니다. 이미 실행된 클릭이나 구매를 되돌리지는 않습니다.",
+            self.resume_button: "일시정지한 작업을 재개합니다. 멈추기 전 좌표가 더 이상 유효하지 않으면 안전 중지할 수 있습니다.",
+            self.stop_button: "실행 중인 작업을 중지합니다. 이미 구매·분해한 결과는 되돌릴 수 없습니다. 게임 화면을 확인한 뒤 다시 시작하세요.",
+            self.dismantle_test_button: "게임에서 분해 창을 열고 수량을 보유한 대상 개수(1~15)에 맞추세요. 추가 구매 없이 기존 아이템을 실제로 분해합니다.",
+        }
+        for widget, text in tooltips.items():
+            widget.setToolTip(text)
+            widget.setToolTipDuration(20000)
         self.status = QLabel(State.IDLE.value)
         layout.addWidget(self.status)
         self.activity = QProgressBar()

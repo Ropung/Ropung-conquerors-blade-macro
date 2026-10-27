@@ -75,6 +75,23 @@ def target_role(name):
     return "확인 이미지 · 클릭 안 함"
 
 
+def item_tooltip(name):
+    role = target_role(name)
+    if is_region(name):
+        detail = "이미지를 자르는 작업이 아닙니다. 아이템을 찾을 범위만 지정합니다. 이 영역 자체는 클릭하지 않습니다."
+    elif name == "buy_button":
+        detail = "버들잎 면갑과 같은 줄의 구매 버튼 하나를 글자·테두리까지 선택하세요. 마우스는 버튼에서 떼고 촬영하세요. 다른 구매 버튼은 검색 범위에서 제외하세요."
+    elif name == "quantity_field":
+        detail = "수량 입력칸 전체를 테두리까지 선택합니다. 실제 입력 시 칸의 오른쪽 부분을 클릭합니다."
+    elif name in CLICK_TARGETS:
+        detail = "버튼·아이템 하나를 선택합니다. 인식한 이미지의 중앙이 클릭 대상입니다. 검색 범위는 다음 단계에서 별도로 지정합니다."
+    elif "cost_" in name or name.startswith("quantity_"):
+        detail = "전체 숫자와 통화 표시 또는 입력칸 테두리를 포함하세요. 숫자 일부만 자르면 다른 수량·비용을 잘못 인식할 수 있습니다. 클릭하지 않습니다."
+    else:
+        detail = "화면 상태를 확인하는 기준 이미지입니다. 해당 글자·아이콘을 선택하고 움직이는 배경은 제외하세요. 이 이미지는 클릭하지 않습니다."
+    return f"{korean_label(name)}\n[{role}]\n{detail}"
+
+
 def capture_steps(quantity):
     groups = [
         ("NPC 메뉴", "게임에서 F키를 누른 뒤 NPC 메뉴를 캡처하세요.", ["shop_menu"]),
@@ -208,6 +225,9 @@ class CalibrationDialog(QDialog):
         self.name = QComboBox()
         row.addWidget(self.kind)
         row.addWidget(self.name, 1)
+        help_button = QPushButton("? 항목 설명")
+        help_button.clicked.connect(lambda: QMessageBox.information(self, "현재 보정 항목", self.name.toolTip()))
+        row.addWidget(help_button)
         capture = QPushButton("게임 캡처 (창 숨김 · 3초 후)")
         capture.clicked.connect(self.capture)
         setup.addWidget(capture)
@@ -275,6 +295,7 @@ class CalibrationDialog(QDialog):
         self.action_choice = QComboBox()
         for key, label, _ in NAVIGATION_STEPS:
             self.action_choice.addItem(label, key)
+            self.action_choice.setItemData(self.action_choice.count() - 1, label + "\n이 동작 하나만 실행합니다. 다음 번호로 자동 진행하지 않습니다.", Qt.ItemDataRole.ToolTipRole)
         actions.addWidget(self.action_choice, 1)
         action_button = QPushButton("선택 동작 1회 실행 (3초 후 · F9 중지)")
         action_button.clicked.connect(self.start_action)
@@ -294,10 +315,45 @@ class CalibrationDialog(QDialog):
         review.clicked.connect(self.review)
         review_panel.addWidget(QLabel("이미지, 검색 범위, 비용, 수량을 확인한 뒤 검토 완료를 표시하세요. 변경 시 검토 표시는 해제됩니다."))
         review_panel.addWidget(review)
+        tips = {
+            self.kind: "보정 항목을 필터링합니다. 처음에는 순서대로 전체를 선택하세요. 보정 번호와 동작 테스트 번호는 서로 다릅니다.",
+            help_button: "선택한 항목의 설명을 클릭해서 계속 볼 수 있습니다. 목록이나 버튼에 마우스를 올려도 설명이 나타납니다.",
+            capture: "프로그램 창을 숨기고 3초 뒤 촬영합니다. 그동안 안내된 게임 화면을 준비하세요. 같은 화면의 다른 항목은 이 캡처를 재사용합니다.",
+            restart: "현재 항목의 저장 전 선택을 취소하고 대상을 다시 고릅니다. 기존에 저장한 파일은 삭제하지 않습니다.",
+            previous: "이전 보정 항목으로 이동합니다. 저장하지 않은 선택은 취소됩니다. 이전 캡처가 있으면 재사용합니다.",
+            following: "다음 보정 항목으로 이동합니다. 현재 선택을 저장하지는 않습니다. 저장하려면 보정 탭의 저장 버튼을 누르세요.",
+            selected_test: "선택한 항목을 현재 게임 화면에서 찾아 위치·유사도를 표시합니다. 3초 안에 게임을 활성화하세요. 클릭·구매·분해는 하지 않습니다.",
+            stage_test: "현재 보정 화면 단계에 속한 항목들을 함께 검사합니다. 다른 단계로 자동 이동하거나 게임을 조작하지 않습니다.",
+            self.threshold: "선택한 이미지의 통과 기준입니다. 50~100%, 새 이미지 기본 90%. 예: 80%면 80% 이상을 일치로 봅니다. 정답 확률은 아니며 낮추면 오인식이 늘 수 있습니다.",
+            self.threshold_save: "현재 항목의 유사도 기준만 저장합니다. 모든 항목에 적용하지 않습니다. 변경 후 최종 검토 표시는 해제됩니다.",
+            self.saved_preview: "이미 저장된 비교용 이미지입니다. 현재 드래그 중인 선택과 다를 수 있습니다. 원본 보기로 실제 저장 범위를 확인하세요.",
+            enlarge: "저장된 PNG를 원본 크기로 확인합니다. 검색 영역 항목은 좌표만 저장하므로 이미지가 없습니다.",
+            self.action_enabled: "체크하면 선택 동작 테스트에서 실제 키보드·마우스 입력을 허용합니다. 매 테스트 종료 후 해제됩니다.",
+            action_button: "선택한 동작 하나만 실행합니다. 3초 안에 게임과 시작 화면을 준비하세요. 다음 동작은 자동 실행하지 않습니다. F9로 중지합니다.",
+            review: "수량·비용·이미지·검색 범위를 직접 확인했다는 표시입니다. 실게임 성공을 자동 검증하지 않습니다. 보정이나 유사도를 변경하면 해제됩니다.",
+        }
+        for widget, text in tips.items():
+            widget.setToolTip(text)
+            widget.setToolTipDuration(20000)
+        for index, text in enumerate((
+                "화면 캡처 → 대상 이미지 선택 → 검색 범위 지정 → 저장 순서입니다. 이 탭에서는 게임을 클릭하지 않습니다.",
+                "현재 화면에서 인식 위치와 유사도를 확인하고 항목별 기준을 설정합니다. 실제 입력은 없습니다.",
+                "선택한 키·클릭 동작 하나를 실행합니다. 구매 확정·분해 실행은 포함하지 않습니다.",
+                "저장한 보정과 테스트 결과를 확인한 뒤 검토 완료를 표시합니다.")):
+            self.tabs.setTabToolTip(index, text)
+        self.action_choice.currentIndexChanged.connect(self.update_action_help)
+        self.update_action_help()
         self.kind.currentIndexChanged.connect(self.fill_names)
         self.fill_names()
         self.tabs.currentChanged.connect(self.change_tab)
         self.change_tab(0)
+
+    def update_action_help(self):
+        key = self.action_choice.currentData()
+        definition = next(item for item in NAVIGATION_STEPS if item[0] == key)
+        text = definition[1] + "\n필요한 보정: " + ", ".join(korean_label(name) for name in definition[2])
+        text += "\n선택한 동작만 실행합니다. 보정 목록의 번호와는 다릅니다."
+        self.action_choice.setToolTip(text)
 
     def change_tab(self, index):
         self.test_results.setVisible(index in (1, 2))
@@ -313,6 +369,7 @@ class CalibrationDialog(QDialog):
             if self.kind.currentIndex() == 2 and not is_region(name):
                 continue
             self.name.addItem(f"{number:02d}. [{stage}] [{target_role(name)}] {korean_label(name)}", name)
+            self.name.setItemData(self.name.count() - 1, item_tooltip(name), Qt.ItemDataRole.ToolTipRole)
         # Continue from the first unsaved item without changing existing crops.
         for index in range(self.name.count()):
             name = self.name.itemData(index)
@@ -334,8 +391,10 @@ class CalibrationDialog(QDialog):
             return
         _, stage, instructions = next(step for step in capture_steps(self.config.quantity) if step[0] == name)
         self.pending_crop = None
+        self.name.setToolTip(item_tooltip(name))
         self.stage_text.setText(f"현재 화면: {stage}\n{instructions}")
         self.save_button.setText("검색 영역 저장 → 다음 항목" if is_region(name) else "① 대상 선택 완료 → 검색 범위")
+        self.save_button.setToolTip("검색할 범위의 좌표만 저장합니다. 이미지 파일은 만들지 않습니다." if is_region(name) else "먼저 비교할 이미지 하나를 드래그하세요. 이 버튼을 누르면 같은 캡처에서 검색 범위를 지정합니다. 아직 파일은 저장하지 않습니다.")
         self.threshold.setEnabled(not is_region(name))
         self.threshold_save.setEnabled(not is_region(name))
         self.threshold.setValue(self.data.get("templates", {}).get(name, {}).get("threshold", .90) * 100)
@@ -374,6 +433,9 @@ class CalibrationDialog(QDialog):
             hint = "해당 글자·아이콘이 선명하게 들어가도록 드래그하세요. 화면이 바뀌면 게임 캡처를 다시 누르세요."
         saved = name in self.data["regions" if is_region(name) else "templates"]
         self.help_text.setText(f"[{target_role(name)}] {'저장됨' if saved else '미저장'} · {hint}")
+        self.help_text.setToolTip(item_tooltip(name))
+        if self.view is not None:
+            self.view.setToolTip(item_tooltip(name) + "\n마우스로 드래그하여 선택하세요. 여기서는 실제 게임을 클릭하지 않습니다.")
         self.update_saved_preview()
 
     def saved_image_path(self):
@@ -660,10 +722,13 @@ class CalibrationDialog(QDialog):
             self.view.click_point = rect.center() if name in CLICK_TARGETS else None
             self.view.update()
             self.save_button.setText("② 검색 범위 확인·저장 → 다음 항목")
+            self.save_button.setToolTip("대상 이미지와 노란 검색 범위를 함께 저장합니다. 검색 범위는 대상 전체를 포함해야 합니다. 저장 후 다음 보정 항목으로 이동합니다.")
             hint = "노란 사각형 안에서만 위 이미지를 찾습니다. 대상을 포함하되 같은 버튼이 여러 개 들어가지 않게 드래그하세요. 기본 범위를 그대로 저장해도 됩니다."
             if name in ("inventory_target", "slot_empty", "slot_target"):
                 hint += " 이 이미지는 자동 실행 시 별도로 지정한 인벤토리/분해 칸 검색 영역에서 검사합니다."
             self.help_text.setText("[검색 범위 · 클릭 안 함] " + hint)
+            self.help_text.setToolTip(hint)
+            self.view.setToolTip(hint)
             self.status.setText("대상 선택 완료. 같은 캡처에서 검색 범위를 확인하세요. 아직 파일은 저장하지 않았습니다.")
             return
         roi = [rect.x(), rect.y(), rect.width(), rect.height()]
