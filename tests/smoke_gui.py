@@ -28,6 +28,10 @@ with tempfile.TemporaryDirectory() as directory:
         assert not window.admin_unlocked
         assert window.admin_panel.isHidden()
         assert window.start_button.minimumHeight() >= 80
+        assert not window.resolution_box.isHidden()
+        assert not window.similarity.isHidden()
+        window.similarity.setValue(88)
+        assert Config.load(Path(directory)).similarity == 88
         with patch("ui.main_window.QInputDialog.getText", return_value=("wrong", True)), patch("ui.main_window.QMessageBox.warning"):
             window.toggle_admin()
         assert not window.admin_unlocked

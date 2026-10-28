@@ -7,7 +7,7 @@ from logging.handlers import RotatingFileHandler
 
 from PySide6.QtCore import QThread, Signal, QTimer, Qt
 from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-                               QSpinBox, QPushButton, QPlainTextEdit, QCheckBox, QMessageBox, QProgressBar, QApplication, QComboBox, QInputDialog, QLineEdit)
+                               QSpinBox, QPushButton, QPlainTextEdit, QCheckBox, QMessageBox, QProgressBar, QApplication, QComboBox, QInputDialog, QLineEdit, QDoubleSpinBox)
 
 from core.config import Config, app_root, profile_path
 from core.screen_capture import GameWindow
@@ -123,7 +123,20 @@ class MainWindow(QMainWindow):
         self.resolution_box.setCurrentIndex(sizes.index(self.config.resolution))
         self.resolution_box.currentIndexChanged.connect(self.save_resolution)
         resolution_row.addWidget(self.resolution_box)
-        admin_layout.addLayout(resolution_row)
+        layout.addLayout(resolution_row)
+        self.resolution_box.setMinimumHeight(42)
+        similarity_row = QHBoxLayout()
+        similarity_row.addWidget(QLabel("인식 유사도"))
+        self.similarity = QDoubleSpinBox()
+        self.similarity.setRange(50, 100)
+        self.similarity.setDecimals(1)
+        self.similarity.setSuffix(" %")
+        self.similarity.setValue(self.config.similarity)
+        self.similarity.setMinimumHeight(42)
+        self.similarity.setToolTip("모든 자동 실행 이미지 인식에 적용합니다. 기본 90%. 낮추면 다른 항목도 일치할 수 있습니다.")
+        self.similarity.valueChanged.connect(self.save_similarity)
+        similarity_row.addWidget(self.similarity)
+        layout.addLayout(similarity_row)
         self.resolution_hint = QLabel("해상도별로 보정 이미지를 따로 저장합니다. 변경 후 해당 해상도에서 보정하세요.")
         admin_layout.addWidget(self.resolution_hint)
         row = QHBoxLayout()
@@ -238,7 +251,7 @@ class MainWindow(QMainWindow):
         self.log("실제 입력 비활성화. 보정 이미지 없이는 실행되지 않습니다.")
         self.update_set_summary()
         self.release_mode = bool(getattr(sys, "frozen", False))
-        self.intro.setText("상인 앞에서 시작을 누르세요 · 해상도 자동 감지")
+        self.intro.setText("게임 해상도와 유사도를 선택하고 상인 앞에서 시작하세요")
         self.start_button.setText("시작 (F6)")
         self.stop_button.setText("정지 (F9)")
         for button, color in ((self.start_button, "#2563eb"), (self.stop_button, "#dc2626")):
@@ -246,19 +259,8 @@ class MainWindow(QMainWindow):
             button.setStyleSheet(f"QPushButton {{ background: {color}; color: white; font-size: 26px; font-weight: bold; border-radius: 12px; }} QPushButton:disabled {{ background: #9ca3af; }}")
         self.set_count.setMinimumHeight(48)
         self.set_count.setStyleSheet("font-size: 22px;")
-        self.start_button.setToolTip("게임 해상도를 자동 감지하고 지정한 세트만큼 구매·분해합니다.")
-        self.log("게임 해상도 자동 감지 · 시작 버튼으로 실행 · F9 정지")
-        QTimer.singleShot(0, self.refresh_detected_resolution)
-
-    def refresh_detected_resolution(self):
-        try:
-            size = GameWindow(self.config.window_title).client_size()
-            self.config.width, self.config.height = size
-            self.intro.setText(f"게임 {size[0]} × {size[1]} 자동 감지 · 상인 앞에서 시작하세요")
-            return size
-        except Exception:
-            self.intro.setText("게임을 실행하고 상인 앞에서 시작을 누르세요 · 해상도 자동 감지")
-            return None
+        self.start_button.setToolTip("선택한 해상도·유사도로 지정한 세트만큼 구매·분해합니다.")
+        self.log("해상도 수동 선택 · 사용자 유사도 적용 · F9 정지")
 
     def toggle_admin(self):
         if self.worker and self.worker.isRunning():
@@ -311,6 +313,13 @@ class MainWindow(QMainWindow):
     def save_quantity(self, value):
         self.config.quantity = value
         self.config.live_input = False
+        try:
+            self.config.save(self.root)
+        except OSError as error:
+            self.log("설정 저장 실패: " + str(error))
+
+    def save_similarity(self, value):
+        self.config.similarity = value
         try:
             self.config.save(self.root)
         except OSError as error:
@@ -369,14 +378,14 @@ class MainWindow(QMainWindow):
             return
         if not dismantle_only:
             try:
-                size = GameWindow(self.config.window_title).client_size()
-                self.config.width, self.config.height = size
+                size = self.config.resolution
+                GameWindow(self.config.window_title, size).check(foreground=False)
                 profile = Profile(profile_path(self.config, self.root), size)
                 profile.validate(self.config.quantity)
                 if self.config.quantity not in profile.data.get("reviewed_quantities", []):
                     raise ValueError("이 해상도·수량의 배포용 보정이 준비되지 않았습니다.")
                 self.live.setChecked(not read_only)
-                self.log(f"게임 {size[0]}×{size[1]} · 내장 보정 선택 완료")
+                self.log(f"선택 해상도 {size[0]}×{size[1]} · 유사도 {self.config.similarity:g}%")
             except Exception as error:
                 self.show_failure("지원되는 해상도의 내장 보정이 필요합니다: " + str(error))
                 return
@@ -398,6 +407,7 @@ class MainWindow(QMainWindow):
         self.worker.finished.connect(self.finished)
         self.quantity.setEnabled(False)
         self.resolution_box.setEnabled(False)
+        self.similarity.setEnabled(False)
         self.set_count.setEnabled(False)
         self.result_summary.setText("실행 결과: 작업 중")
         self.calibrate.setEnabled(False)
@@ -454,6 +464,7 @@ class MainWindow(QMainWindow):
             self.runtime_hint.setText(self.status.text() + "\n" + (self.stop_reason.text() or self.current_step.text()))
         self.quantity.setEnabled(True)
         self.resolution_box.setEnabled(True)
+        self.similarity.setEnabled(True)
         self.set_count.setEnabled(True)
         if self.worker:
             self.result_summary.setText(self.worker.result_text)

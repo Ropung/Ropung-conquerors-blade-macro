@@ -54,9 +54,10 @@ class ResolutionTests(unittest.TestCase):
     def test_resolution_roundtrip_and_separate_profiles(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            config = Config(width=1920, height=1080)
+            config = Config(width=1920, height=1080, similarity=87.5)
             config.save(root)
             self.assertEqual(Config.load(root).resolution, (1920, 1080))
+            self.assertEqual(Config.load(root).similarity, 87.5)
             self.assertEqual(config.calibration_profile, Path('calibration/1920x1080/profile.json'))
             self.assertEqual(Config().calibration_profile, Path('calibration/profile.json'))
 

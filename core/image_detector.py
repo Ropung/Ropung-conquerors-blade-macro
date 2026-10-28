@@ -42,6 +42,12 @@ class Profile:
             self.templates.pop(obsolete, None)
         self.regions = self.data.get("regions", {})
 
+    def apply_similarity(self, percent):
+        if isinstance(percent, bool) or not isinstance(percent, (int, float)) or not 50 <= percent <= 100:
+            raise SafetyError("유사도는 50~100%여야 합니다.")
+        for spec in self.templates.values():
+            spec["threshold"] = percent / 100
+
     def validate(self, quantity, template_names=None):
         missing = set(required_templates(quantity) if template_names is None else template_names) - self.templates.keys()
         if missing:

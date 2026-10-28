@@ -41,6 +41,7 @@ class Config:
     width: int = 2560
     height: int = 1440
     set_count: int = 1
+    similarity: float = 90.0
 
     @property
     def resolution(self):
@@ -54,6 +55,8 @@ class Config:
         return path.parent / f"{self.width}x{self.height}" / path.name
 
     def validate(self):
+        if isinstance(self.similarity, bool) or not isinstance(self.similarity, (int, float)) or not 50 <= self.similarity <= 100:
+            raise ValueError("유사도는 50~100%여야 합니다.")
         if type(self.set_count) is not int or not 1 <= self.set_count <= 10000:
             raise ValueError("세트 수는 1~10,000 정수여야 합니다.")
         if any(type(v) is not int or not 320 <= v <= 16384 for v in self.resolution):

@@ -4,11 +4,20 @@ import unittest
 import cv2
 import numpy as np
 
-from core.image_detector import Detector
+from core.image_detector import Detector, Profile
 from core.state_machine import SafetyError
 
 
 class DetectorTests(unittest.TestCase):
+    def test_user_similarity_applies_to_all_templates(self):
+        profile = Profile.__new__(Profile)
+        profile.templates = {"button": {"threshold": .9}, "item": {"threshold": .97}}
+        profile.apply_similarity(87.5)
+        self.assertTrue(all(spec["threshold"] == .875 for spec in profile.templates.values()))
+        for invalid in (True, 49, 101, float('nan')):
+            with self.assertRaises(SafetyError):
+                profile.apply_similarity(invalid)
+
     def test_page_arrow_ignores_changing_translucent_background(self):
         template = np.full((30, 20, 3), 20, dtype=np.uint8)
         cv2.polylines(template, [np.array([[4, 4], [15, 15], [4, 26]])], False, (200, 200, 200), 2)

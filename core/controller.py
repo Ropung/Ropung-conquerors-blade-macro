@@ -165,6 +165,7 @@ def run(config, root, control, log, change_state, single_cycle=False, max_disman
         raise SafetyError("최대 분해 개수는 0 이상의 정수여야 합니다.")
     change_state(State.CHECKING)
     profile = Profile(profile_path(config, root), config.resolution)
+    profile.apply_similarity(config.similarity)
     profile.validate(config.quantity)
     first_quantity = next_quantity(config.quantity, max_dismantle, 0)
     planned = {first_quantity}
@@ -243,6 +244,7 @@ def run_dismantle_once(config, root, control, log, change_state):
              "inventory_target_identity", "dismantle_button",
              "complete_popup", "complete_confirm", "dismantle_cost_300", f"dismantle_cost_{quantity * 300}"}
     profile = Profile(profile_path(config, root), config.resolution)
+    profile.apply_similarity(config.similarity)
     profile.templates = {name: spec for name, spec in profile.templates.items() if name in names}
     profile.validate(quantity, template_names=names)
     Detector(profile)
