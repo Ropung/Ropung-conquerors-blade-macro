@@ -1,0 +1,58 @@
+name: Startup module diagnostics
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'diagnostics/**'
+      - '.github/workflows/startup-diagnostics.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: windows-latest
+    env:
+      PYTHONUTF8: '1'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - entry: window_only
+            name: 01-WindowOnly
+          - entry: vision_imports
+            name: 02-RecognitionLibraries
+          - entry: input_imports
+            name: 03-InputLibraries
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12.10'
+          architecture: x64
+          cache: pip
+      - run: python -m pip install -r requirements.txt
+      - name: Validate probe without game input
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: python diagnostics/${{ matrix.entry }}.py --smoke
+      - name: Build isolated probe
+        run: python -m PyInstaller --noconfirm --clean --onefile --windowed --name "${{ matrix.name }}" diagnostics/${{ matrix.entry }}.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Diagnostic-${{ matrix.name }}
+          path: dist/${{ matrix.name }}.exe
+          if-no-files-found: error
+  collect:
+    needs: probe
+    runs-on: windows-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: Diagnostic-*
+          merge-multiple: true
+          path: diagnostics-release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Startup-Diagnostics-All
+          path: diagnostics-release/*.exe
+          if-no-files-found: error
