@@ -44,4 +44,4 @@ def package_assets(root):
 
 
 if __name__ == "__main__":
-    print("내장 해상도:", package_assets(Path(__file__).resolve().parent))
+    print("Embedded resolutions:", package_assets(Path(__file__).resolve().parent))
