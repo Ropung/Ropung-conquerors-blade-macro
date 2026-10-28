@@ -24,14 +24,24 @@ jobs:
         env:
           QT_QPA_PLATFORM: offscreen
         run: python tests/smoke_gui.py
-      - name: Build standalone EXE
+      - name: Build comparison EXE without embedded images
         run: |
           python package_assets.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python -m PyInstaller --noconfirm --clean --onefile --windowed --add-data "build/bundled_assets/calibration;calibration" --name ConquerorsBladeMacro main.py
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --name ConquerorsBladeMacro main.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          New-Item -ItemType Directory -Path release/no-embedded-images -Force
+          Copy-Item dist/ConquerorsBladeMacro.exe release/no-embedded-images/
+          Copy-Item build/bundled_assets/calibration release/no-embedded-images/calibration -Recurse
+          @'
+          Comparison build: the EXE contains no calibration PNG images.
+          Extract the ZIP and launch ConquerorsBladeMacro.exe to compare startup blocking.
+          To run automation, copy the calibration folder into:
+          %LOCALAPPDATA%\ConquerorsBladeMacro\calibration
+          Current profiles support 2560x1440 only.
+          '@ | Set-Content release/no-embedded-images/READ-ME.txt -Encoding utf8
       - uses: actions/upload-artifact@v4
         with:
-          name: ConquerorsBladeMacro-Windows
-          path: dist/ConquerorsBladeMacro.exe
+          name: ConquerorsBladeMacro-NoEmbeddedImages
+          path: release/no-embedded-images/
           if-no-files-found: error
