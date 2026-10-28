@@ -3,12 +3,30 @@ from pathlib import Path
 import unittest
 from unittest.mock import Mock, patch
 
-from core.run_stats import RunStats, next_quantity
+from core.run_stats import RunStats, next_quantity, set_limit
 from core.controller import run
 from core.config import Config
 
 
 class RunStatsTests(unittest.TestCase):
+    def test_set_limits_and_invalid_counts(self):
+        self.assertEqual(set_limit(1), 15)
+        self.assertEqual(set_limit(3), 45)
+        for count in (0, -1, True, 1.5, 10001):
+            with self.subTest(count=count), self.assertRaises(ValueError):
+                set_limit(count)
+
+    def test_three_sets_run_three_full_batches(self):
+        with ExitStack() as stack:
+            mocks = {name: stack.enter_context(patch("core.controller." + name)) for name in (
+                "Profile", "Detector", "GameWindow", "ScreenCapture", "InputController", "Session",
+                "open_inventory", "slots", "targets", "purchase", "register", "dismantle")}
+            mocks["Profile"].return_value.data = {"reviewed_quantities": [15]}
+            run(Config(quantity=15, live_input=True), Path("."), Mock(), Mock(), Mock(),
+                single_cycle=False, max_dismantle=set_limit(3))
+            self.assertEqual([c.args[1] for c in mocks["purchase"].call_args_list], [15, 15, 15])
+            self.assertEqual([c.args[1] for c in mocks["dismantle"].call_args_list], [15, 15, 15])
+
     def test_confirmed_costs_and_interrupted_batch(self):
         stats = RunStats()
         stats.begin_purchase(15)

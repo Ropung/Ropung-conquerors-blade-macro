@@ -1,0 +1,325 @@
+{
+  "resolution": [
+    2560,
+    1440
+  ],
+  "regions": {
+    "inventory": [
+      1722,
+      240,
+      805,
+      203
+    ],
+    "slot_0": [
+      82,
+      452,
+      100,
+      100
+    ],
+    "slot_1": [
+      182,
+      452,
+      100,
+      100
+    ],
+    "slot_2": [
+      282,
+      452,
+      100,
+      100
+    ],
+    "slot_3": [
+      382,
+      452,
+      100,
+      100
+    ],
+    "slot_4": [
+      482,
+      452,
+      100,
+      100
+    ],
+    "slot_5": [
+      82,
+      552,
+      100,
+      100
+    ],
+    "slot_6": [
+      182,
+      552,
+      100,
+      100
+    ],
+    "slot_7": [
+      282,
+      552,
+      100,
+      100
+    ],
+    "slot_8": [
+      382,
+      552,
+      100,
+      100
+    ],
+    "slot_9": [
+      482,
+      552,
+      100,
+      100
+    ],
+    "slot_10": [
+      82,
+      652,
+      100,
+      100
+    ],
+    "slot_11": [
+      182,
+      652,
+      100,
+      100
+    ],
+    "slot_12": [
+      282,
+      652,
+      100,
+      100
+    ],
+    "slot_13": [
+      382,
+      652,
+      100,
+      100
+    ],
+    "slot_14": [
+      482,
+      652,
+      100,
+      100
+    ]
+  },
+  "reviewed_quantities": [
+    15
+  ],
+  "templates": {
+    "buy_button": {
+      "file": "buy_button.png",
+      "roi": [
+        521,
+        482,
+        182,
+        59
+      ],
+      "threshold": 0.9
+    },
+    "buy_confirm": {
+      "file": "buy_confirm.png",
+      "roi": [
+        934,
+        859,
+        291,
+        83
+      ],
+      "threshold": 0.9
+    },
+    "buy_popup": {
+      "file": "buy_popup.png",
+      "roi": [
+        768,
+        489,
+        1028,
+        534
+      ],
+      "threshold": 0.9
+    },
+    "complete_confirm": {
+      "file": "complete_confirm.png",
+      "roi": [
+        1131,
+        862,
+        306,
+        91
+      ],
+      "threshold": 0.9
+    },
+    "complete_popup": {
+      "file": "complete_popup.png",
+      "roi": [
+        767,
+        497,
+        1028,
+        471
+      ],
+      "threshold": 0.9
+    },
+    "dismantle_button": {
+      "file": "dismantle_button.png",
+      "roi": [
+        191,
+        1107,
+        284,
+        72
+      ],
+      "threshold": 0.9
+    },
+    "dismantle_cost_300": {
+      "file": "dismantle_cost_300.png",
+      "roi": [
+        248,
+        1063,
+        225,
+        57
+      ],
+      "threshold": 0.9
+    },
+    "dismantle_cost_4500": {
+      "file": "dismantle_cost_4500.png",
+      "roi": [
+        248,
+        1063,
+        241,
+        57
+      ],
+      "threshold": 0.9
+    },
+    "dismantle_icon": {
+      "file": "dismantle_icon.png",
+      "roi": [
+        1614,
+        567,
+        94,
+        91
+      ],
+      "threshold": 0.9
+    },
+    "dismantle_panel": {
+      "file": "dismantle_panel.png",
+      "roi": [
+        291,
+        383,
+        91,
+        64
+      ],
+      "threshold": 0.9
+    },
+    "inventory_open": {
+      "file": "inventory_open.png",
+      "roi": [
+        1738,
+        96,
+        174,
+        79
+      ],
+      "threshold": 0.9
+    },
+    "inventory_target": {
+      "file": "inventory_target.png",
+      "roi": [
+        1722,
+        240,
+        805,
+        203
+      ],
+      "threshold": 0.9
+    },
+    "inventory_target_identity": {
+      "file": "inventory_target_identity.png",
+      "roi": [
+        0,
+        0,
+        2560,
+        1440
+      ],
+      "threshold": 0.9,
+      "crop": [
+        1310,
+        322,
+        431,
+        131
+      ]
+    },
+    "page_two": {
+      "file": "page_two.png",
+      "roi": [
+        428,
+        1072,
+        55,
+        74
+      ],
+      "threshold": 0.9
+    },
+    "page_two_active": {
+      "file": "page_two_active.png",
+      "roi": [
+        269,
+        1068,
+        223,
+        83
+      ],
+      "threshold": 0.9
+    },
+    "quantity_field": {
+      "file": "quantity_field.png",
+      "roi": [
+        1176,
+        732,
+        207,
+        74
+      ],
+      "threshold": 0.9
+    },
+    "shop_menu": {
+      "file": "shop_menu.png",
+      "roi": [
+        1909,
+        1092,
+        213,
+        87
+      ],
+      "threshold": 0.9
+    },
+    "shop_open": {
+      "file": "shop_open.png",
+      "roi": [
+        46,
+        63,
+        588,
+        198
+      ],
+      "threshold": 0.9
+    },
+    "shop_target": {
+      "file": "shop_target.png",
+      "roi": [
+        52,
+        427,
+        668,
+        126
+      ],
+      "threshold": 0.9
+    },
+    "slot_empty": {
+      "file": "slot_empty.png",
+      "roi": [
+        82,
+        452,
+        100,
+        100
+      ],
+      "threshold": 0.9
+    },
+    "slot_target": {
+      "file": "slot_target.png",
+      "roi": [
+        82,
+        452,
+        100,
+        100
+      ],
+      "threshold": 0.9
+    }
+  }
+}

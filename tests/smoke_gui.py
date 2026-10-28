@@ -18,12 +18,24 @@ import numpy as np
 
 app = QApplication([])
 with tempfile.TemporaryDirectory() as directory:
-    with patch("ui.main_window.app_root", return_value=Path(directory)), patch("ui.main_window.HotkeyManager"):
+    with patch("ui.main_window.app_root", return_value=Path(directory)), patch("ui.main_window.HotkeyManager"), patch("ui.main_window.GameWindow") as detected_window:
+        detected_window.return_value.client_size.side_effect = RuntimeError("no game in smoke test")
         window = MainWindow()
-        assert window.quantity.minimum() == 1
-        assert window.quantity.maximum() == 20
+        assert window.quantity.minimum() == 15
+        assert window.quantity.maximum() == 15
         assert window.quantity.value() == 15
         assert not window.live.isChecked()
+        assert not window.admin_unlocked
+        assert window.admin_panel.isHidden()
+        assert window.start_button.minimumHeight() >= 80
+        with patch("ui.main_window.QInputDialog.getText", return_value=("wrong", True)), patch("ui.main_window.QMessageBox.warning"):
+            window.toggle_admin()
+        assert not window.admin_unlocked
+        with patch("ui.main_window.QInputDialog.getText", return_value=("5676", True)):
+            window.toggle_admin()
+        assert window.admin_unlocked
+        window.toggle_admin()
+        assert not window.admin_unlocked
         window.resolution_box.setCurrentIndex(3)
         assert window.config.resolution == (1920, 1080)
         assert Config.load(Path(directory)).resolution == (1920, 1080)
@@ -47,7 +59,10 @@ with tempfile.TemporaryDirectory() as directory:
             assert fhd_dialog.view.width() == 1920
         fhd_dialog.reject()
         assert window.single_cycle.isChecked()
-        assert window.max_dismantle.value() == 15
+        assert window.set_count.value() == 1
+        window.set_count.setValue(3)
+        assert window.config.set_count == 3
+        assert "45" in window.set_summary.text()
         assert "실행 결과" in window.result_summary.text()
         assert window.stop_reason.text() == ""
         window.show_failure("inventory_target_identity: 인식 실패")
@@ -55,7 +70,7 @@ with tempfile.TemporaryDirectory() as directory:
         window.started_at = window.last_update_at = 0
         window.refresh_progress()
         assert "경과" in window.status.text()
-        window.quantity.setValue(20)
+        window.set_count.setValue(2)
         assert (Path(directory) / "config.json").is_file()
         config = Config(quantity=15)
         dialog = CalibrationDialog(config, Path(directory), window)

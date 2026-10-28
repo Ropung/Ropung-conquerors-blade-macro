@@ -202,7 +202,9 @@ class SafetyTests(unittest.TestCase):
 
     def test_cost_templates_for_twenty(self):
         names = required_templates(20)
-        self.assertIn("buy_cost_32000", names)
+        self.assertNotIn("buy_cost_32000", names)
+        self.assertNotIn("quantity_20", names)
+        self.assertNotIn("buy_target_identity", names)
         self.assertIn("dismantle_cost_4500", names)
         self.assertIn("dismantle_cost_1500", names)
 

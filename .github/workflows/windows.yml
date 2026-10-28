@@ -24,13 +24,12 @@ jobs:
         run: python tests/smoke_gui.py
       - name: Build standalone EXE
         run: |
-          python -m PyInstaller --noconfirm --clean --onefile --windowed --name ConquerorsBladeMacro main.py
-          New-Item -ItemType Directory -Path release/ConquerorsBladeMacro -Force
-          Copy-Item dist/ConquerorsBladeMacro.exe release/ConquerorsBladeMacro/
-          Copy-Item config.example.json,README.md,PLAN.txt release/ConquerorsBladeMacro/
-          if (Test-Path calibration) { Copy-Item calibration release/ConquerorsBladeMacro/calibration -Recurse }
-          Compress-Archive -Path release/ConquerorsBladeMacro -DestinationPath dist/ConquerorsBladeMacro-Windows.zip -Force
+          python package_assets.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --add-data "build/bundled_assets/calibration;calibration" --name ConquerorsBladeMacro main.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - uses: actions/upload-artifact@v4
         with:
           name: ConquerorsBladeMacro-Windows
-          path: dist/ConquerorsBladeMacro-Windows.zip
+          path: dist/ConquerorsBladeMacro.exe
+          if-no-files-found: error

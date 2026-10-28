@@ -9,3 +9,4 @@ logs/*
 config.json
 *.spec
 .pytest_cache/
+build.log

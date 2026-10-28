@@ -13,6 +13,7 @@ class PurchaseFlowTests(unittest.TestCase):
             purchase(session, 15)
         session.hover_target.assert_not_called()
         session.require.assert_any_call(session.expect.return_value, "shop_target", "buy_button")
+        session.require.assert_called_once()
         self.assertEqual([c.args[0] for c in session.inputs.click.call_args_list], ["buy_button", "buy_confirm"])
         self.assertFalse(any(c.args[0] == "shop_target" for c in session.click.call_args_list))
 

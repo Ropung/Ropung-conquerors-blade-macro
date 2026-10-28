@@ -98,8 +98,7 @@ def capture_steps(quantity):
         ("상점", "마구 상점을 클릭해 들어간 화면을 캡처하세요.", ["shop_open", "page_two"]),
         ("상점 2페이지", "2페이지로 이동한 화면을 캡처하세요.", ["page_two_active", "shop_target", "buy_button"]),
         ("구매 수량 창", f"구매 버튼을 누르고 수량을 {quantity}개로 입력한 화면을 캡처하세요. 최종 구매는 아직 누르지 마세요.",
-         list(dict.fromkeys(["buy_popup", "quantity_field", f"quantity_{quantity}", "buy_target_identity", f"buy_cost_{quantity * 1600}", "buy_confirm"]))),
-        ("구매 수량 1개", "수량을 1개로 맞춰 비용 1,600 표시만 캡처하세요.", ["buy_cost_1600"] if quantity != 1 else []),
+         ["buy_popup", "quantity_field", "buy_confirm"]),
         ("인벤토리", "상점을 닫고 I키로 인벤토리를 연 화면을 캡처하세요.", ["inventory_open", "dismantle_icon"]),
         ("빈 분해 창", "왼쪽 네 번째 분해 아이콘을 누르고, 분해 칸이 모두 빈 화면을 캡처하세요.",
          ["dismantle_panel", "inventory", "slot_empty", *[f"slot_{i}" for i in range(15)]]),
@@ -494,8 +493,6 @@ class CalibrationDialog(QDialog):
         key = self.action_choice.currentData()
         definition = next(item for item in NAVIGATION_STEPS if item[0] == key)
         required = list(definition[2])
-        if key == "quantity":
-            required.append(f"quantity_{self.config.quantity}")
         try:
             profile = Profile(self.path, self.config.resolution)
             missing = [name for name in required if name not in profile.templates]
@@ -771,7 +768,7 @@ class CalibrationDialog(QDialog):
         except Exception as error:
             QMessageBox.warning(self, "미완료", str(error))
             return
-        message = (f"{self.config.quantity}개 수량 표시, 구매 비용 {self.config.quantity * 1600:,}, 파란 버들잎 면갑 이름·등급, "
+        message = (f"구매 수량 {self.config.quantity}개 설정, 상점의 파란 버들잎 면갑 이름·등급, "
                    "분해 비용(개당 300), 전체 인벤토리, 서로 겹치지 않는 15개 슬롯을 실제 화면에서 확인했습니까?\n"
                    "이 표시는 실게임 테스트 통과를 의미하지 않습니다. 최초 실행은 1개 수량으로 진행하세요.")
         if QMessageBox.question(self, "수동 보정 검토", message) == QMessageBox.StandardButton.Yes:

@@ -1,6 +1,12 @@
 from dataclasses import asdict, dataclass
 
 
+def set_limit(set_count):
+    if type(set_count) is not int or not 1 <= set_count <= 10000:
+        raise ValueError("세트 수는 1~10,000 정수여야 합니다.")
+    return set_count * 15
+
+
 @dataclass
 class RunStats:
     purchased: int = 0

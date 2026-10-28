@@ -14,7 +14,7 @@ NAVIGATION_STEPS = [
     ("hover", "3. 버들잎 면갑 항목 확인", ["page_two_active", "shop_target"]),
     ("select", "4. 버들잎 면갑 선택", ["page_two_active", "shop_target", "buy_button"]),
     ("popup", "5. 구매 수량 창 열기 (구매 확정 안 함)", ["shop_open", "buy_button", "buy_popup"]),
-    ("quantity", "6. 수량 입력 (15개는 기본값 1 뒤에 5 입력)", ["buy_popup", "quantity_field", "buy_cost_1600"]),
+    ("quantity", "6. 수량 입력 (15개는 기본값 1 뒤에 5 입력)", ["buy_popup", "quantity_field"]),
     ("close_popup", "7. 구매 수량 창 닫기", ["buy_popup"]),
     ("close_shop", "8. 상점 닫기", ["shop_open"]),
     ("inventory", "9. I키 → 인벤토리 열기", ["inventory_open"]),
@@ -62,8 +62,6 @@ def run_step_test(config, root, control, key, log):
     if key == "quantity":
         if type(config.quantity) is not int or not 1 <= config.quantity <= 20:
             raise SafetyError("수량은 1~20이어야 합니다.")
-        names.append(f"quantity_{config.quantity}")
-        names.append(f"buy_cost_{config.quantity * 1600}")
     missing = set(names) - profile.templates.keys()
     if missing:
         raise SafetyError("이 동작에 필요한 이미지를 먼저 저장하세요: " + ", ".join(sorted(missing)))

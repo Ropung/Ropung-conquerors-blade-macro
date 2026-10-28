@@ -6,7 +6,20 @@ from pathlib import Path
 
 
 def app_root():
-    return Path(sys.executable).parent if getattr(sys, "frozen", False) else Path(__file__).resolve().parents[1]
+    if getattr(sys, "frozen", False):
+        return Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "ConquerorsBladeMacro"
+    return Path(__file__).resolve().parents[1]
+
+
+def resource_root():
+    return Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[1]))
+
+
+def profile_path(config, root):
+    """Local authoring profiles take priority; releases carry their own images."""
+    relative = config.calibration_profile
+    local = Path(root) / relative
+    return local if local.is_file() else resource_root() / relative
 
 
 def write_json(path, value):
@@ -27,6 +40,7 @@ class Config:
     completion_timeout_seconds: float = 90
     width: int = 2560
     height: int = 1440
+    set_count: int = 1
 
     @property
     def resolution(self):
@@ -40,6 +54,8 @@ class Config:
         return path.parent / f"{self.width}x{self.height}" / path.name
 
     def validate(self):
+        if type(self.set_count) is not int or not 1 <= self.set_count <= 10000:
+            raise ValueError("세트 수는 1~10,000 정수여야 합니다.")
         if any(type(v) is not int or not 320 <= v <= 16384 for v in self.resolution):
             raise ValueError("해상도는 320~16384 범위의 정수여야 합니다.")
         if type(self.quantity) is not int or not 1 <= self.quantity <= 20:

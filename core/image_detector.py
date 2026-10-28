@@ -9,11 +9,10 @@ def required_templates(quantity):
     names = {
         "shop_menu", "shop_open", "page_two", "page_two_active",
         "shop_target", "buy_button", "buy_popup",
-        "buy_target_identity", "inventory_target_identity",
-        "quantity_field", "buy_cost_1600", "buy_confirm", "inventory_open", "dismantle_icon",
+        "inventory_target_identity",
+        "quantity_field", "buy_confirm", "inventory_open", "dismantle_icon",
         "dismantle_panel", "inventory_target", "slot_target", "slot_empty",
         "dismantle_button", "complete_popup", "complete_confirm", "dismantle_cost_300",
-        f"quantity_{quantity}", f"buy_cost_{quantity * 1600}",
     }
     names.update(f"dismantle_cost_{amount * 300}" for amount in batches(quantity))
     return sorted(names)

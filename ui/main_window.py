@@ -1,17 +1,21 @@
 import logging
 import time
 import json
+import sys
 from datetime import datetime
 from logging.handlers import RotatingFileHandler
 
 from PySide6.QtCore import QThread, Signal, QTimer, Qt
 from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-                               QSpinBox, QPushButton, QPlainTextEdit, QCheckBox, QMessageBox, QProgressBar, QApplication, QComboBox)
+                               QSpinBox, QPushButton, QPlainTextEdit, QCheckBox, QMessageBox, QProgressBar, QApplication, QComboBox, QInputDialog, QLineEdit)
 
-from core.config import Config, app_root
+from core.config import Config, app_root, profile_path
+from core.screen_capture import GameWindow
+from core.image_detector import Profile
 from core.controller import run, run_dismantle_once
 from core.hotkey_manager import HotkeyManager
 from core.state_machine import RunControl, State, Stopped
+from core.run_stats import set_limit
 from ui.calibration import CalibrationDialog
 
 
@@ -76,12 +80,13 @@ class MainWindow(QMainWindow):
         self.current_state = State.IDLE.value
         self.closing = False
         self.calibration_dialog = None
+        self.admin_unlocked = False
         self.started_at = None
         self.last_update_at = None
         self.progress_timer = QTimer(self)
         self.progress_timer.setInterval(500)
         self.progress_timer.timeout.connect(self.refresh_progress)
-        (self.root / "logs").mkdir(exist_ok=True)
+        (self.root / "logs").mkdir(parents=True, exist_ok=True)
         self.logger = logging.getLogger("macro")
         self.logger.setLevel(logging.INFO)
         handler = RotatingFileHandler(self.root / "logs/macro.log", maxBytes=2_000_000, backupCount=3, encoding="utf-8")
@@ -96,11 +101,16 @@ class MainWindow(QMainWindow):
         # Never restore live mode automatically across app launches.
         self.config.live_input = False
         self.setWindowTitle("Conqueror's Blade Macro")
-        self.resize(780, 540)
+        self.resize(620, 420)
         central = QWidget()
         self.setCentralWidget(central)
         layout = QVBoxLayout(central)
-        layout.addWidget(QLabel("버들잎 면갑 구매 → 최대 15개씩 분해 | 게임 해상도를 아래에서 선택하세요"))
+        layout.setContentsMargins(24, 24, 24, 24)
+        layout.setSpacing(16)
+        self.admin_panel = QWidget()
+        admin_layout = QVBoxLayout(self.admin_panel)
+        self.intro = QLabel("버들잎 면갑 구매 → 최대 15개씩 분해 | 게임 해상도를 아래에서 선택하세요")
+        layout.addWidget(self.intro)
         resolution_row = QHBoxLayout()
         resolution_row.addWidget(QLabel("게임 해상도"))
         self.resolution_box = QComboBox()
@@ -113,51 +123,60 @@ class MainWindow(QMainWindow):
         self.resolution_box.setCurrentIndex(sizes.index(self.config.resolution))
         self.resolution_box.currentIndexChanged.connect(self.save_resolution)
         resolution_row.addWidget(self.resolution_box)
-        layout.addLayout(resolution_row)
-        layout.addWidget(QLabel("해상도별로 보정 이미지를 따로 저장합니다. 변경 후 해당 해상도에서 보정하세요."))
+        admin_layout.addLayout(resolution_row)
+        self.resolution_hint = QLabel("해상도별로 보정 이미지를 따로 저장합니다. 변경 후 해당 해상도에서 보정하세요.")
+        admin_layout.addWidget(self.resolution_hint)
         row = QHBoxLayout()
         row.addWidget(QLabel("구매 수량"))
         self.quantity = QSpinBox()
-        self.quantity.setRange(1, 20)
-        self.quantity.setValue(self.config.quantity)
+        self.quantity.setRange(15, 15)
+        self.config.quantity = 15
+        self.quantity.setValue(15)
         self.quantity.valueChanged.connect(self.save_quantity)
         row.addWidget(self.quantity)
         self.calibrate = QPushButton("화면 캡처 / 보정")
         self.calibrate.clicked.connect(self.open_calibration)
         row.addWidget(self.calibrate)
-        layout.addLayout(row)
+        admin_layout.addLayout(row)
         limit_row = QHBoxLayout()
-        limit_row.addWidget(QLabel("최대 분해 개수"))
-        self.max_dismantle = QSpinBox()
-        self.max_dismantle.setRange(0, 1_000_000)
-        self.max_dismantle.setSpecialValueText("제한 없음")
-        self.max_dismantle.setValue(15)
-        limit_row.addWidget(self.max_dismantle)
-        limit_row.addWidget(QLabel("도달하면 자동 중지 · 0은 제한 없음"))
+        limit_row.addWidget(QLabel("세트 수"))
+        self.set_count = QSpinBox()
+        self.set_count.setRange(1, 10000)
+        self.set_count.setValue(self.config.set_count)
+        self.set_count.valueChanged.connect(self.save_set_count)
+        limit_row.addWidget(self.set_count)
+        self.set_summary = QLabel()
+        limit_row.addWidget(self.set_summary)
         layout.addLayout(limit_row)
         self.live = QCheckBox("실제 게임 입력 활성화 (보정 검토 필요 · 재실행 시 해제)")
-        layout.addWidget(self.live)
+        admin_layout.addWidget(self.live)
         self.single_cycle = QCheckBox("1회 테스트 후 자동 중지 (처음에는 1개로 테스트)")
         self.single_cycle.setChecked(True)
-        layout.addWidget(self.single_cycle)
+        self.single_cycle.hide()
         buttons = QHBoxLayout()
         self.start_button = QPushButton("F6 시작 / 읽기 전용 진단")
         self.pause_button = QPushButton("F7 일시정지")
         self.resume_button = QPushButton("F10 재개")
         self.stop_button = QPushButton("F9 즉시 중지")
-        for button, action in [(self.start_button, self.start), (self.pause_button, self.pause),
-                               (self.resume_button, self.resume), (self.stop_button, self.stop)]:
+        for button, action in [(self.start_button, self.start), (self.stop_button, self.stop)]:
             button.clicked.connect(action)
             buttons.addWidget(button)
         layout.addLayout(buttons)
+        admin_layout.addWidget(self.pause_button)
+        admin_layout.addWidget(self.resume_button)
+        self.pause_button.clicked.connect(self.pause)
+        self.resume_button.clicked.connect(self.resume)
+        self.diagnose_button = QPushButton("읽기 전용 인식 진단")
+        self.diagnose_button.clicked.connect(lambda: self.start(read_only=True))
+        admin_layout.addWidget(self.diagnose_button)
         self.dismantle_test_button = QPushButton("기존 아이템 분해만 1회 테스트 (구매 안 함)")
         self.dismantle_test_button.clicked.connect(self.start_dismantle_test)
-        layout.addWidget(self.dismantle_test_button)
+        admin_layout.addWidget(self.dismantle_test_button)
         tooltips = {
             self.resolution_box: "게임 내부 화면 크기와 같게 선택하세요. 해상도별로 보정 파일을 따로 사용하며 게임 자체의 해상도를 바꾸지는 않습니다.",
             self.quantity: "한 번에 구매할 수량(1~20)입니다. 20개는 최대 15개씩 나누어 분해합니다. 해당 수량의 비용·이미지 보정이 필요합니다.",
             self.calibrate: "① 캡처·보정 → ② 인식 확인 → ③ 동작 테스트 → ④ 최종 검토 순서로 준비합니다. 버튼과 항목 위에 마우스를 올리면 설명을 볼 수 있습니다.",
-            self.max_dismantle: "이번 실행에서 분해할 최대 개수입니다. 0은 제한 없음입니다. 1회 테스트가 켜져 있으면 그보다 먼저 한 사이클 후 중지할 수 있습니다.",
+            self.set_count: "1세트는 15개 구매·분해입니다. 지정한 세트를 모두 처리하면 자동 중지합니다.",
             self.live: "꺼져 있으면 F6은 읽기 전용 진단입니다. 켜면 실제 구매·분해로 코인과 아이템이 소모됩니다. 보정 검토와 단축키 등록이 필요합니다.",
             self.single_cycle: "구매→분해 한 사이클을 마치면 자동 중지합니다. 반복 실행하려면 해제하세요. 실행 종료 후 다시 켜집니다.",
             self.start_button: "실제 입력이 꺼져 있으면 화면 진단만 합니다. 켜져 있으면 준비 상태를 검사한 뒤 자동 구매·분해를 시작합니다.",
@@ -197,7 +216,12 @@ class MainWindow(QMainWindow):
         self.log_view = QPlainTextEdit()
         self.log_view.setReadOnly(True)
         self.log_view.setMaximumBlockCount(2000)
-        layout.addWidget(self.log_view, 1)
+        admin_layout.addWidget(self.log_view, 1)
+        self.admin_button = QPushButton("관리자 설정")
+        self.admin_button.clicked.connect(self.toggle_admin)
+        layout.addWidget(self.admin_button)
+        layout.addWidget(self.admin_panel)
+        self.admin_panel.hide()
         self.start_requested.connect(self.start)
         self.pause_requested.connect(self.pause)
         self.resume_requested.connect(self.resume)
@@ -212,6 +236,44 @@ class MainWindow(QMainWindow):
         if config_error:
             self.log("설정 파일 오류, 기본값 사용: " + config_error)
         self.log("실제 입력 비활성화. 보정 이미지 없이는 실행되지 않습니다.")
+        self.update_set_summary()
+        self.release_mode = bool(getattr(sys, "frozen", False))
+        self.intro.setText("상인 앞에서 시작을 누르세요 · 해상도 자동 감지")
+        self.start_button.setText("시작 (F6)")
+        self.stop_button.setText("정지 (F9)")
+        for button, color in ((self.start_button, "#2563eb"), (self.stop_button, "#dc2626")):
+            button.setMinimumHeight(88)
+            button.setStyleSheet(f"QPushButton {{ background: {color}; color: white; font-size: 26px; font-weight: bold; border-radius: 12px; }} QPushButton:disabled {{ background: #9ca3af; }}")
+        self.set_count.setMinimumHeight(48)
+        self.set_count.setStyleSheet("font-size: 22px;")
+        self.start_button.setToolTip("게임 해상도를 자동 감지하고 지정한 세트만큼 구매·분해합니다.")
+        self.log("게임 해상도 자동 감지 · 시작 버튼으로 실행 · F9 정지")
+        QTimer.singleShot(0, self.refresh_detected_resolution)
+
+    def refresh_detected_resolution(self):
+        try:
+            size = GameWindow(self.config.window_title).client_size()
+            self.config.width, self.config.height = size
+            self.intro.setText(f"게임 {size[0]} × {size[1]} 자동 감지 · 상인 앞에서 시작하세요")
+            return size
+        except Exception:
+            self.intro.setText("게임을 실행하고 상인 앞에서 시작을 누르세요 · 해상도 자동 감지")
+            return None
+
+    def toggle_admin(self):
+        if self.worker and self.worker.isRunning():
+            return
+        if not self.admin_unlocked:
+            password, accepted = QInputDialog.getText(self, "관리자 모드", "비밀번호", QLineEdit.EchoMode.Password)
+            if not accepted:
+                return
+            if password != "5676":
+                QMessageBox.warning(self, "관리자 모드", "비밀번호가 올바르지 않습니다.")
+                return
+        self.admin_unlocked = not self.admin_unlocked
+        self.admin_panel.setVisible(self.admin_unlocked)
+        self.admin_button.setText("관리자 모드 닫기" if self.admin_unlocked else "관리자 설정")
+        self.resize(780 if self.admin_unlocked else 620, 820 if self.admin_unlocked else 420)
 
     def log(self, message):
         self.logger.info(message)
@@ -232,7 +294,8 @@ class MainWindow(QMainWindow):
         elapsed = int(time.monotonic() - self.started_at)
         idle = int(time.monotonic() - (self.last_update_at or self.started_at))
         phase = State.PAUSED.value if self.control and not self.control.running.is_set() else self.current_state
-        self.status.setText(f"실행 중 · {phase} · 경과 {elapsed}초 · 마지막 진행 {idle}초 전")
+        done = self.control.stats.dismantled // 15 if self.control else 0
+        self.status.setText(f"실행 중 · 완료 {done}/{self.config.set_count}세트 · {phase} · 경과 {elapsed}초 · 마지막 진행 {idle}초 전")
         self.runtime_hint.setText(self.status.text() + "\n" + self.current_step.text())
 
     def save_resolution(self, index):
@@ -253,7 +316,21 @@ class MainWindow(QMainWindow):
         except OSError as error:
             self.log("설정 저장 실패: " + str(error))
 
+    def update_set_summary(self):
+        total = set_limit(self.config.set_count)
+        self.set_summary.setText(f"1세트 = 15개 · 총 {total:,}개 처리 후 자동 중지")
+
+    def save_set_count(self, value):
+        self.config.set_count = value
+        self.update_set_summary()
+        try:
+            self.config.save(self.root)
+        except OSError as error:
+            self.log("설정 저장 실패: " + str(error))
+
     def open_calibration(self):
+        if not self.admin_unlocked:
+            return
         if self.worker and self.worker.isRunning():
             return
         self.live.setChecked(False)
@@ -268,6 +345,8 @@ class MainWindow(QMainWindow):
         self.status.setText(State.PAUSED.value if self.control and not self.control.running.is_set() else text)
 
     def start_dismantle_test(self):
+        if not self.admin_unlocked:
+            return
         if self.calibration_dialog is not None or (self.worker and self.worker.isRunning()):
             return
         if not self.live.isChecked() or not self.hotkeys:
@@ -281,29 +360,45 @@ class MainWindow(QMainWindow):
         if QMessageBox.question(self, "실제 분해 1회 테스트", text, QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No) == QMessageBox.StandardButton.Yes:
             self.start(dismantle_only=True)
 
-    def start(self, dismantle_only=False):
+    def start(self, dismantle_only=False, read_only=False):
         if self.calibration_dialog is not None:
             return
         if self.worker and self.worker.isRunning():
             return
+        if read_only and not self.admin_unlocked:
+            return
+        if not dismantle_only:
+            try:
+                size = GameWindow(self.config.window_title).client_size()
+                self.config.width, self.config.height = size
+                profile = Profile(profile_path(self.config, self.root), size)
+                profile.validate(self.config.quantity)
+                if self.config.quantity not in profile.data.get("reviewed_quantities", []):
+                    raise ValueError("이 해상도·수량의 배포용 보정이 준비되지 않았습니다.")
+                self.live.setChecked(not read_only)
+                self.log(f"게임 {size[0]}×{size[1]} · 내장 보정 선택 완료")
+            except Exception as error:
+                self.show_failure("지원되는 해상도의 내장 보정이 필요합니다: " + str(error))
+                return
         if self.live.isChecked() and not self.hotkeys:
             self.log("중지 단축키가 없어 실제 입력을 거부합니다.")
             return
         config = Config(**vars(self.config))
         config.live_input = self.live.isChecked()
-        limit = self.max_dismantle.value()
+        limit = set_limit(self.set_count.value())
         if dismantle_only and limit and config.quantity > limit:
             QMessageBox.information(self, "분해 개수 제한", "기존 아이템 테스트 수량이 최대 분해 개수보다 큽니다. 수량 또는 제한을 조정하세요.")
             return
         self.control = RunControl()
-        self.worker = Worker(config, self.root, self.control, self.single_cycle.isChecked(), dismantle_only=dismantle_only, max_dismantle=limit)
+        self.log(f"{self.set_count.value()}세트 시작 · 1세트 15개 · 총 {limit:,}개")
+        self.worker = Worker(config, self.root, self.control, False, dismantle_only=dismantle_only, max_dismantle=limit)
         self.worker.message.connect(self.log)
         self.worker.state.connect(self.set_state)
         self.worker.failed.connect(self.show_failure)
         self.worker.finished.connect(self.finished)
         self.quantity.setEnabled(False)
         self.resolution_box.setEnabled(False)
-        self.max_dismantle.setEnabled(False)
+        self.set_count.setEnabled(False)
         self.result_summary.setText("실행 결과: 작업 중")
         self.calibrate.setEnabled(False)
         self.live.setEnabled(False)
@@ -359,7 +454,7 @@ class MainWindow(QMainWindow):
             self.runtime_hint.setText(self.status.text() + "\n" + (self.stop_reason.text() or self.current_step.text()))
         self.quantity.setEnabled(True)
         self.resolution_box.setEnabled(True)
-        self.max_dismantle.setEnabled(True)
+        self.set_count.setEnabled(True)
         if self.worker:
             self.result_summary.setText(self.worker.result_text)
         self.calibrate.setEnabled(True)

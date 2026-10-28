@@ -40,7 +40,7 @@ class DismantleFinishTests(unittest.TestCase):
                 wait_for_completion(session, 0)
         session.inputs.click.assert_not_called()
 
-    def test_confirm_then_empty_list_then_one_finish_click(self):
+    def test_confirm_then_empty_list_finishes_without_extra_click(self):
         session = Mock()
         session.detector.present.return_value = False
         events = []
@@ -49,23 +49,28 @@ class DismantleFinishTests(unittest.TestCase):
         session.wait_absent.side_effect = lambda *args: events.append("closed")
         def check_slots(s, count):
             events.append(f"slots:{count}")
-        with patch("automation.dismantle_automation.slots", side_effect=check_slots), patch("automation.dismantle_automation.targets"), patch("automation.dismantle_automation.wait_for_completion"):
+        with patch("automation.dismantle_automation.slot_count", return_value=0), patch("automation.dismantle_automation.slots", side_effect=check_slots), patch("automation.dismantle_automation.targets"), patch("automation.dismantle_automation.wait_for_completion"):
             dismantle(session, 15, 0)
-        self.assertEqual(events, ["slots:15", "click", "confirm", "closed", "slots:0", "click"])
+        self.assertEqual(events, ["slots:15", "click", "confirm", "closed", "slots:0"])
         session.click.assert_called_once_with("complete_confirm", "dismantle_panel")
 
-    def test_nonempty_list_prevents_finish_click(self):
+    def test_multiple_items_left_stop_without_retry_or_confirming_success(self):
         session = Mock()
         session.detector.present.return_value = False
-        with patch("automation.dismantle_automation.slots", side_effect=[None, SafetyError("one left")]), patch("automation.dismantle_automation.targets"), patch("automation.dismantle_automation.wait_for_completion"):
+        with patch("automation.dismantle_automation.slot_count", return_value=2), patch("automation.dismantle_automation.slots", side_effect=[None, SafetyError("two left")]), patch("automation.dismantle_automation.targets"), patch("automation.dismantle_automation.wait_for_completion"):
             with self.assertRaises(SafetyError):
                 dismantle(session, 15, 0)
         self.assertEqual(session.inputs.click.call_count, 1)
+        session.control.stats.confirm_dismantle.assert_not_called()
 
-    def test_popup_still_open_prevents_finish_click(self):
+    def test_one_left_after_confirm_is_dismantled_then_confirmed(self):
         session = Mock()
-        session.detector.present.side_effect = [False, True]
-        with patch("automation.dismantle_automation.slots"), patch("automation.dismantle_automation.targets"), patch("automation.dismantle_automation.wait_for_completion"):
-            with self.assertRaises(SafetyError):
-                dismantle(session, 15, 0)
-        self.assertEqual(session.inputs.click.call_count, 1)
+        session.detector.present.return_value = False
+        with patch("automation.dismantle_automation.slot_count", return_value=1), patch("automation.dismantle_automation.slots") as checked, patch("automation.dismantle_automation.targets"), patch("automation.dismantle_automation.wait_for_completion"):
+            dismantle(session, 15, 0)
+        self.assertEqual(session.inputs.click.call_count, 2)
+        self.assertEqual(session.click.call_count, 2)
+        self.assertEqual(session.wait_absent.call_count, 2)
+        checked.assert_any_call(session, 1)
+        checked.assert_any_call(session, 0)
+        session.control.stats.confirm_dismantle.assert_called_once()

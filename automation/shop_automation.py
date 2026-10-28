@@ -11,10 +11,9 @@ def purchase(session, quantity):
     session.inputs.click(session.detector.one(frame, "buy_button"))
     session.expect("buy_popup")
     set_quantity(session, quantity)
-    # All observations are repeated immediately before spending coins.
+    # The item was verified in the shop row before opening this fresh dialog.
+    # Confirm directly after entry; quantity/cost screenshots are not required.
     frame = session.frame()
-    session.require(frame, "buy_popup", "buy_target_identity",
-                    f"quantity_{quantity}", f"buy_cost_{quantity * 1600}")
     session.control.stats.begin_purchase(quantity)
     session.inputs.click(session.detector.one(frame, "buy_confirm"))
     session.wait_absent("buy_popup")

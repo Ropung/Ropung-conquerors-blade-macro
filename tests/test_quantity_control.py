@@ -6,26 +6,27 @@ from core.state_machine import SafetyError
 
 
 class QuantityControlTests(unittest.TestCase):
-    def test_fifteen_uses_text_entry_after_confirming_default_one(self):
+    def test_fifteen_enters_quantity_without_quantity_or_cost_recognition(self):
         session = Mock()
         session.detector.present.return_value = False
         set_quantity(session, 15)
-        session.require.assert_any_call(session.frame.return_value, "buy_cost_1600")
+        session.require.assert_called_once_with(session.frame.return_value, "buy_popup")
         session.click.assert_called_once_with("quantity_field", "buy_popup")
         session.inputs.quantity.assert_called_once_with(15)
-        session.expect_all.assert_called_once_with(("quantity_15", "buy_cost_24000"), timeout=2)
+        session.detector.present.assert_not_called()
+        session.expect_all.assert_not_called()
         session.inputs.click.assert_not_called()
 
-    def test_already_correct_quantity_is_not_appended_again(self):
+    def test_invalid_quantity_prevents_input(self):
         session = Mock()
-        session.detector.present.return_value = True
-        set_quantity(session, 15)
+        with self.assertRaises(SafetyError):
+            set_quantity(session, 0)
         session.inputs.quantity.assert_not_called()
 
-    def test_unknown_initial_quantity_prevents_input(self):
+    def test_missing_popup_prevents_input(self):
         session = Mock()
         session.detector.present.return_value = False
-        session.require.side_effect = [None, SafetyError("not default one")]
+        session.require.side_effect = SafetyError("popup missing")
         with self.assertRaises(SafetyError):
             set_quantity(session, 15)
         session.inputs.quantity.assert_not_called()

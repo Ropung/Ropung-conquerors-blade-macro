@@ -53,6 +53,12 @@ class GameWindow:
         self.user32.SetForegroundWindow(self.hwnd)
         self.check()
 
+    def client_size(self):
+        rect = wintypes.RECT()
+        if not self.user32.GetClientRect(self.hwnd, ctypes.byref(rect)):
+            raise SafetyError("게임 해상도를 가져오지 못했습니다.")
+        return rect.right, rect.bottom
+
     def check(self, foreground=True):
         u = self.user32
         if not u.IsWindow(self.hwnd) or u.IsIconic(self.hwnd):

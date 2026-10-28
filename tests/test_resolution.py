@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from core.config import Config, write_json
+from core.config import Config, write_json, profile_path, app_root
 from core.image_detector import Profile, valid_rect
 from core.input_controller import InputController
 from core.state_machine import RunControl, SafetyError
@@ -11,6 +11,22 @@ from core.screen_capture import GameWindow
 
 
 class ResolutionTests(unittest.TestCase):
+    def test_embedded_profile_used_without_external_calibration(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            bundled = root / 'embedded'
+            with patch('core.config.resource_root', return_value=bundled):
+                config = Config(width=1920, height=1080)
+                expected = bundled / 'calibration/1920x1080/profile.json'
+                self.assertEqual(profile_path(config, root / 'settings'), expected)
+                local = root / 'settings' / config.calibration_profile
+                write_json(local, {})
+                self.assertEqual(profile_path(config, root / 'settings'), local)
+
+    def test_release_settings_are_outside_executable(self):
+        with patch('core.config.sys.frozen', True, create=True), patch.dict('core.config.os.environ', {'LOCALAPPDATA': 'C:/Example/AppData/Local'}):
+            self.assertEqual(app_root(), Path('C:/Example/AppData/Local/ConquerorsBladeMacro'))
+
     def test_game_window_accepts_fhd_client_and_rejects_wrong_size(self):
         window = GameWindow.__new__(GameWindow)
         window.resolution = (1920, 1080)
