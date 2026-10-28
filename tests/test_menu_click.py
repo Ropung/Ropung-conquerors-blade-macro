@@ -45,3 +45,12 @@ class MenuClickTests(unittest.TestCase):
         session.click("quantity_field", "buy_popup")
         session.inputs.click_ui.assert_called_once_with((1340, 769))
         session.inputs.click.assert_not_called()
+
+    def test_page_arrow_uses_hover_aware_windows_click(self):
+        session = self.session()
+        session.detector.one.return_value = (456, 1111)
+        session.click("page_two", "page_two_active")
+        session.inputs.click_ui.assert_called_once_with((456, 1111))
+        session.inputs.click.assert_not_called()
+        session.expect.assert_any_call("page_two", timeout=3)
+        session.expect.assert_called_with("page_two_active")

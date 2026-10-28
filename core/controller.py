@@ -87,7 +87,7 @@ class Session:
                 import cv2
                 report = self.detector.diagnose(last_frame, name)
                 details = f" (최고 유사도 {report['similarity']:.1%}, 기준 {report['threshold']:.1%}, 검색 영역 {report['roi']})"
-                folder = self.profile.path.parent.parent / "logs"
+                folder = app_root() / "logs"
                 folder.mkdir(parents=True, exist_ok=True)
                 ok, encoded = cv2.imencode(".png", last_frame)
                 if ok:
@@ -136,6 +136,9 @@ class Session:
             # Arrow keys can move focus to the adjacent plus button in this UI.
             width = self.detector.images[name].shape[1]
             self.inputs.click_ui((point[0] + width // 3, point[1]))
+        elif name == "page_two":
+            self.log("2페이지 화살표 클릭 · 커서 위치와 호버 갱신 후 Windows 클릭")
+            self.inputs.click_ui(point)
         else:
             self.inputs.click(point)
         self.expect(after)
